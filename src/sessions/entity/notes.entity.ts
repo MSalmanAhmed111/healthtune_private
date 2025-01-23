@@ -1,5 +1,5 @@
 import { Session } from "@entities";
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, CreateDateColumn } from "typeorm";
 
 @Entity('notes')
 export class Note {
@@ -9,7 +9,7 @@ export class Note {
     @Column()
     sessionId: number;
 
-    @ManyToOne(() => Session, session => session.id, { onDelete: 'CASCADE' })
+    @OneToOne(() => Session, session => session.note)
     @JoinColumn({ name: 'sessionId' })
     session: Session;
 

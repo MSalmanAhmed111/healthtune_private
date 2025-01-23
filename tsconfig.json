@@ -19,8 +19,8 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "@types": ["./src/types"],
-      "@entities": ["src/entities"],
-      "@dtos": ["./src/dtos"],
+      "@entities": ["src/entity"],
+      "@dtos": ["src/dto"],
       "@messages": ["./src/common/messages"],
       "@middlewares/*": ["./src/common/middlewares/*"],
       "@constants/*": ["./src/common/constants/*"],

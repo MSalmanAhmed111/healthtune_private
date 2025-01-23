@@ -1,5 +1,5 @@
-import { Entity, Column } from 'typeorm';
-import { BaseEntity } from '@entities';
+import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { BaseEntity, Note, Transcript } from 'src/entity';
 import { GenderEnum, SessionStatusEnum } from '@types';
 
 @Entity({ name: 'sessions' })
@@ -21,4 +21,12 @@ export class Session extends BaseEntity {
 
   @Column({ type: 'varchar', default: SessionStatusEnum.PROCESS })
   status: SessionStatusEnum;
+
+  @OneToOne(() => Transcript, (transcript) => transcript.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
+  @JoinColumn()
+  transcript: Transcript;
+
+  @OneToOne(() => Note, (note) => note.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
+  @JoinColumn()
+  note: Note;
 }

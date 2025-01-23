@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript } from '@entities';
+import { Session, Note, Transcript } from 'src/entity';
 import { Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationQueryDto } from '@dtos';
+import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationQueryDto } from 'src/dto';
 import { SessionErrorMessages, SuccessResponseMessages } from '@messages';
 
 @Injectable()
@@ -18,12 +18,12 @@ export class SessionService {
   ) {}
 
   async createSession(reqBody: CreateSessionDto): Promise<ApiMessageData> {
-    const { patientName, sex, sessionType, noteFormat, language, status } = reqBody;
+    const { patientName, sex, sessionType, noteFormat, language } = reqBody;
 
     let session = await this.sessionRepository.findOne({ where: { patientName } });
     if (session) throw new BadRequestException(SessionErrorMessages.sessionAlreadyExists);
 
-    session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, status });
+    session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language });
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };
@@ -33,8 +33,9 @@ export class SessionService {
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
-    const note = this.noteRepository.create({ sessionId, content: createNoteBody.content });
-    await this.noteRepository.save(note);
+    let note = this.noteRepository.create({ sessionId, content: createNoteBody.content });
+    note = await this.noteRepository.save(note);
+    await this.sessionRepository.update({ id: sessionId }, { note });
 
     return { message: SuccessResponseMessages.successGeneral, data: note };
   }
@@ -44,18 +45,16 @@ export class SessionService {
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
-    const transcript = this.transcriptRepository.create({ sessionId, assemblyId: assemblyId, content: content });
-    await this.transcriptRepository.save(transcript);
+    let transcript = this.transcriptRepository.create({ sessionId, assemblyId: assemblyId, content: content });
+    transcript = await this.transcriptRepository.save(transcript);
+    await this.sessionRepository.update({ id: sessionId }, { transcript, status: SessionStatusEnum.COMPLETED });
 
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
 
   async getSessions(getSessionsDto: PaginationQueryDto): Promise<ApiMessageDataPagination> {
     const { query, page, limit, sort = 'DESC' } = getSessionsDto;
-    const qb = this.sessionRepository
-      .createQueryBuilder('session')
-      .select(['session', 'notes', 'transcripts'])
-      .orderBy('session.createdAt', sort);
+    const qb = this.sessionRepository.createQueryBuilder('session').select(['session']).orderBy('session.createdAt', sort);
 
     if (query) {
       qb.andWhere(
@@ -76,7 +75,7 @@ export class SessionService {
   }
 
   async getSession(sessionId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
