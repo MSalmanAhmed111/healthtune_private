@@ -19,11 +19,8 @@ export class SessionService {
 
   async createSession(reqBody: CreateSessionDto): Promise<ApiMessageData> {
     const { patientName, sex, sessionType, noteFormat, language } = reqBody;
-
-    let session = await this.sessionRepository.findOne({ where: { patientName } });
-    if (session) throw new BadRequestException(SessionErrorMessages.sessionAlreadyExists);
-
-    session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language });
+    
+    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language });
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };

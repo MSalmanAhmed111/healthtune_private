@@ -6,6 +6,7 @@ import configuration from '@config/configuration';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './db/db-config';
+import { MacrosModule } from './macros/macros.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { dataSourceOptions } from './db/db-config';
     }),
     TypeOrmModule.forRoot(dataSourceOptions),
     SessionsModule,
+    MacrosModule
   ],
   controllers: [AppController],
   providers: [AppService],

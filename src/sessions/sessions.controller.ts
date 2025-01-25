@@ -6,28 +6,28 @@ import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationQueryDto } fr
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 
-@ApiTags('session')
+@ApiTags('Sessions')
 @Controller('session')
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
-  @SwaggerApiResponse('Create a new session', CreateSessionDto)
+  @SwaggerApiResponse('Create a new session')
   async createSession(@Body() reqBody: CreateSessionDto): Promise<ApiMessageData> {
     return await this.sessionService.createSession(reqBody);
   }
 
   @Put('/:id/note')
   @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Add a note to a session', AddNoteDto)
+  @SwaggerApiResponse('Add a note to a session')
   async addNoteToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
     return await this.sessionService.addNoteToSession(sessionId, reqBody);
   }
 
   @Put('/:id/transcript')
   @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Add transcript to a session', AddTranscriptDto)
+  @SwaggerApiResponse('Add transcript to a session')
   async addTranscriptToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddTranscriptDto) {
     return await this.sessionService.addTranscriptToSession(sessionId, reqBody);
   }
@@ -41,7 +41,7 @@ export class SessionController {
 
   @Get('/:id')
   @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Get a session by ID', undefined, { id: 'string' })
+  @SwaggerApiResponse('Get a session by ID')
   async getSession(@Param('id', ValidateId) sessionId: number) {
     return await this.sessionService.getSession(sessionId);
   }
