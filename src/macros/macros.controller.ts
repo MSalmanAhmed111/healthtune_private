@@ -2,12 +2,12 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query } 
 import { MacrosService } from './macros.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { AddNoteDto, CreateMacroDto, AddTranscriptDto, PaginationQueryDto, UpdateMacroDto } from '@dtos';
+import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 
 @ApiTags('Macros')
-@Controller('macro')
+@Controller('macros')
 export class MacrosController {
   constructor(private readonly macrosService: MacrosService) {}
 
