@@ -9,6 +9,7 @@ import { dataSourceOptions } from './db/db-config';
 import { MacrosModule } from './macros/macros.module';
 import { TemplatesModule } from './templates/templates.module';
 import { ClerkClientProvider } from './common/providers';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ClerkClientProvider } from './common/providers';
     SessionsModule,
     MacrosModule,
     TemplatesModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService, ClerkClientProvider],
