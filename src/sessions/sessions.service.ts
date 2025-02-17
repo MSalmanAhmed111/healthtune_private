@@ -19,7 +19,7 @@ export class SessionService {
 
   async createSession(reqBody: CreateSessionDto): Promise<ApiMessageData> {
     const { patientName, sex, sessionType, noteFormat, language } = reqBody;
-    
+
     const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language });
     await this.sessionRepository.save(session);
 
@@ -27,13 +27,18 @@ export class SessionService {
   }
 
   async addNoteToSession(sessionId: number, createNoteBody: AddNoteDto): Promise<ApiMessageData> {
+    const { content } = createNoteBody;
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
-    let note = this.noteRepository.create({ sessionId, content: createNoteBody.content });
-    note = await this.noteRepository.save(note);
-    await this.sessionRepository.update({ id: sessionId }, { note });
+    let note = await this.noteRepository.findOne({ where: { sessionId } });
+    if (note) note.content = content || note.content;
+    else note = this.noteRepository.create({ sessionId, content });
 
+    note = await this.noteRepository.save(note);
+    session.note = note;
+
+    await this.sessionRepository.save(session);
     return { message: SuccessResponseMessages.successGeneral, data: note };
   }
 
@@ -41,10 +46,16 @@ export class SessionService {
     const { assemblyId, content } = reqBody;
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
+    if (transcript) {
+      transcript.assemblyId = assemblyId || transcript.assemblyId;
+      transcript.content = content || transcript.content;
+    } else transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });
 
-    let transcript = this.transcriptRepository.create({ sessionId, assemblyId: assemblyId, content: content });
     transcript = await this.transcriptRepository.save(transcript);
-    await this.sessionRepository.update({ id: sessionId }, { transcript, status: SessionStatusEnum.COMPLETED });
+    session.status = SessionStatusEnum.COMPLETED;
+    session.transcript = transcript;
+    await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
