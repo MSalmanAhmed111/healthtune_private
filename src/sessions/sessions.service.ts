@@ -62,7 +62,7 @@ export class SessionService {
 
   async getSessions(getSessionsDto: PaginationQueryDto): Promise<ApiMessageDataPagination> {
     const { query, page, limit, sort = 'DESC' } = getSessionsDto;
-    const qb = this.sessionRepository.createQueryBuilder('session').select(['session']).orderBy('session.createdAt', sort);
+    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
 
     if (query) {
       qb.andWhere(
