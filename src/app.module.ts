@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './db/db-config';
 import { MacrosModule } from './macros/macros.module';
 import { TemplatesModule } from './templates/templates.module';
+import { ClerkClientProvider } from './common/providers';
 
 @Module({
   imports: [
@@ -19,9 +20,9 @@ import { TemplatesModule } from './templates/templates.module';
     TypeOrmModule.forRoot(dataSourceOptions),
     SessionsModule,
     MacrosModule,
-    TemplatesModule
+    TemplatesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ClerkClientProvider],
 })
 export class AppModule {}

@@ -32,4 +32,8 @@ export default () => ({
     user: process.env.EMAIL_USER,
     password: process.env.EMAIL_PASS,
   },
+  creds: {
+    clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    clerkSecretKey: process.env.CLERK_SECRET_KEY,
+  },
 });
