@@ -10,6 +10,8 @@ import { MacrosModule } from './macros/macros.module';
 import { TemplatesModule } from './templates/templates.module';
 import { ClerkClientProvider } from './common/providers';
 import { AuthModule } from './auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ClerkAuthGuard } from '@guards/auth.guard';
 
 @Module({
   imports: [
@@ -25,6 +27,13 @@ import { AuthModule } from './auth/auth.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, ClerkClientProvider],
+  providers: [
+    AppService,
+    ClerkClientProvider,
+    {
+      provide: APP_GUARD,
+      useClass: ClerkAuthGuard,
+    },
+  ],
 })
 export class AppModule {}
