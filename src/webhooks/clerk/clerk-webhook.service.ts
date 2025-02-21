@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@entities';
 import { SuccessResponseMessages } from '@messages';
 import { ApiMessageData } from '@types';
+//import { User as ClerkUser } from '@clerk/backend';
 
 @Injectable()
 export class ClerkWebhookService {
@@ -13,32 +14,34 @@ export class ClerkWebhookService {
   ) {}
 
   async syncUser(reqBody): Promise<ApiMessageData> {
-    const { clerkUserId, email, firstName, lastName, username, imageUrl, publicMetadata, privateMetadata, unsafeMetadata } = reqBody;
+    const { id, email_addresses, first_name, last_name, image_url, public_metadata, username, primary_email_address_id, private_metadata, unsafe_metadata } = reqBody;
     console.log('reqBody: ', reqBody);
-    let user = await this.userRepository.findOne({ where: [{ clerkUserId }, { email }] });
+    const email = email_addresses[0].email_address;
+    let user = await this.userRepository.findOne({ where: [{ clerkUserId: id }, { email }] });
 
     if (user) {
-      user.firstName = firstName ?? user.firstName;
-      user.lastName = lastName ?? user.lastName;
+      user.firstName = first_name ?? user.firstName;
+      user.lastName = last_name ?? user.lastName;
       user.username = username ?? user.username;
-      user.imageUrl = imageUrl ?? user.imageUrl;
-      user.publicMetadata = publicMetadata ?? user.publicMetadata;
-      user.privateMetadata = privateMetadata ?? user.privateMetadata;
-      user.unsafeMetadata = unsafeMetadata ?? user.unsafeMetadata;
+      user.imageUrl = image_url ?? user.imageUrl;
+      user.publicMetadata = public_metadata ?? user.publicMetadata;
+      user.privateMetadata = private_metadata ?? user.privateMetadata;
+      user.unsafeMetadata = unsafe_metadata ?? user.unsafeMetadata;
 
       await this.userRepository.save(user);
       return { message: SuccessResponseMessages.successGeneral, data: user };
     } else {
       user = this.userRepository.create({
-        clerkUserId,
+        clerkUserId: id,
         email,
-        firstName,
-        lastName,
         username,
-        imageUrl,
-        publicMetadata,
-        privateMetadata,
-        unsafeMetadata,
+        firstName: first_name,
+        lastName: last_name,
+        imageUrl: image_url,
+        publicMetadata: public_metadata,
+        privateMetadata: private_metadata,
+        unsafeMetadata: unsafe_metadata,
+        primaryEmailAddressId: primary_email_address_id,
       });
 
       await this.userRepository.save(user);

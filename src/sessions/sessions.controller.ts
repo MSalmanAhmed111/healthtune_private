@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Req } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
 import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationQueryDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
+import { Request } from 'express';
 
 @ApiTags('Sessions')
 @Controller('session')
@@ -14,8 +15,8 @@ export class SessionController {
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new session')
-  async createSession(@Body() reqBody: CreateSessionDto): Promise<ApiMessageData> {
-    return await this.sessionService.createSession(reqBody);
+  async createSession(@Body() reqBody: CreateSessionDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.sessionService.createSession(reqBody, +req.user.id);
   }
 
   @Put('/:id/note')

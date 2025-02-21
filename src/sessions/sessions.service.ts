@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript } from 'src/entity';
+import { Session, Note, Transcript, User } from 'src/entity';
 import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationQueryDto } from 'src/dto';
@@ -15,12 +15,16 @@ export class SessionService {
     private readonly noteRepository: Repository<Note>,
     @InjectRepository(Transcript)
     private readonly transcriptRepository: Repository<Transcript>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
-  async createSession(reqBody: CreateSessionDto): Promise<ApiMessageData> {
+  async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientName, sex, sessionType, noteFormat, language } = reqBody;
 
-    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language });
+    let user = await this.userRepository.findOne({ where: [{ id: userId }] });
+
+    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, userId: user.id });
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };
