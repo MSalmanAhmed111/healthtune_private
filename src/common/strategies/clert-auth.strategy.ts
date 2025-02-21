@@ -5,6 +5,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-custom';
 import { Request } from 'express';
 import { ClerkClient } from '@clerk/backend';
+import jwt from 'jsonwebtoken';
 
 @Injectable()
 export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
@@ -24,8 +25,15 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     }
 
     try {
+      const clerkSecretKey = this.configService.get('creds.clerkSecretKey');
+      console.log('TOKEN: ', token);
+      console.log('CLERK_SECRET_KEY: ', clerkSecretKey);
+
+      const decoded = jwt.decode(token, { complete: true });
+      console.log('Token Header:', decoded?.header);
+
       const tokenPayload = await verifyToken(token, {
-        secretKey: this.configService.get('creds.clerkSecretKey'),
+        secretKey: clerkSecretKey,
       });
 
       const user = await this.clerkClient.users.getUser(tokenPayload.sub);

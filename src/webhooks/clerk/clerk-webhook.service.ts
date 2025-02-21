@@ -15,7 +15,6 @@ export class ClerkWebhookService {
   async syncUser(reqBody): Promise<ApiMessageData> {
     const { clerkUserId, email, firstName, lastName, username, imageUrl, publicMetadata, privateMetadata, unsafeMetadata } = reqBody;
     console.log('reqBody: ', reqBody);
-    return { message: SuccessResponseMessages.successGeneral, data: reqBody };
     let user = await this.userRepository.findOne({ where: [{ clerkUserId }, { email }] });
 
     if (user) {
