@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Trim } from '@decorators';
@@ -21,6 +21,28 @@ export class PaginationDto {
 }
 
 export class PaginationQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  @Trim()
+  @ApiPropertyOptional({ description: 'search query' })
+  query?: string;
+
+  @IsOptional()
+  @IsString()
+  @Trim()
+  @IsEnum(SortEnum)
+  @ApiPropertyOptional({ description: 'Sort orders by created date ascending or descending' })
+  sort?: SortEnum.ASC | SortEnum.DESC;
+}
+
+export class PaginationUserQueryDto extends PaginationDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @IsPositive()
+  @ApiPropertyOptional({ description: 'Id of the user' })
+  userId: number;
+
   @IsOptional()
   @IsString()
   @Trim()
