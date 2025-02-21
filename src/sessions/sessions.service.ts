@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, User } from 'src/entity';
 import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationQueryDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto } from 'src/dto';
 import { SessionErrorMessages, SuccessResponseMessages } from '@messages';
 
 @Injectable()
@@ -64,7 +64,7 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
 
-  async getSessions(getSessionsDto: PaginationQueryDto): Promise<ApiMessageDataPagination> {
+  async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
     const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
     const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
 

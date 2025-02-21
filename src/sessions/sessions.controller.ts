@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, R
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationQueryDto } from 'src/dto';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationUserQueryDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
@@ -36,7 +36,7 @@ export class SessionController {
   @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all sessions')
-  async getSessions(@Query() queryParams: PaginationQueryDto) {
+  async getSessions(@Query() queryParams: PaginationUserQueryDto) {
     return await this.sessionService.getSessions(queryParams);
   }
 
