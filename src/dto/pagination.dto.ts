@@ -36,6 +36,7 @@ export class PaginationQueryDto extends PaginationDto {
 }
 
 export class PaginationUserQueryDto extends PaginationDto {
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)

@@ -32,16 +32,16 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
 
     try {
       const clerkSecretKey = this.configService.get('creds.clerkSecretKey');
-      // console.log('TOKEN: ', token);
-      // console.log('CLERK_SECRET_KEY: ', clerkSecretKey);
+      console.log('TOKEN: ', token);
+      console.log('CLERK_SECRET_KEY: ', clerkSecretKey);
 
-      // const decoded = this.jwtService.decode(token, { complete: true });
-      // if (!decoded || !decoded.payload?.sub) {
-      //   throw new UnauthorizedException('Invalid token payload');
-      // }
+      const decoded = this.jwtService.decode(token, { complete: true });
+      if (!decoded || !decoded.payload?.sub) {
+        throw new UnauthorizedException('Invalid token payload');
+      }
 
-      // console.log('Token Header:', decoded?.header);
-      // console.log('Token Payload:', decoded.payload);
+      console.log('Token Header:', decoded?.header);
+      console.log('Token Payload:', decoded.payload);
 
       const tokenPayload = await verifyToken(token, { secretKey: clerkSecretKey });
       if (!tokenPayload || !tokenPayload?.sub) throw new UnauthorizedException('Invalid token payload');
