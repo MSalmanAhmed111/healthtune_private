@@ -3,3 +3,4 @@ export * from './success-response.messages';
 export * from 'src/sessions/messages';
 export * from 'src/macros/messages';
 export * from 'src/templates/messages';
+export * from 'src/user/messages';
