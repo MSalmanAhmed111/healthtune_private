@@ -1,6 +1,6 @@
 import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
 import { SettingNames, SettingTypes } from '@types';
-import { languageNames } from '@constants/setting.constants';
+import { languageNames } from '@types';
 import { SettingDto } from 'src/setting/dto';
 
 export function IsValidSettingType(validationOptions?: ValidationOptions) {

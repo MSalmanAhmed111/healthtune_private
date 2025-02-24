@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateSettingsDto } from '@dtos';
 import { ApiMessageData } from '@types';
-import { ErrorResponseMessages, SuccessResponseMessages } from '@messages';
-import { languages } from '@constants/setting.constants';
+import { SettingErrorMessages, SuccessResponseMessages } from '@messages';
+import { languages } from '@types';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Setting } from '@entities';
 import { Repository } from 'typeorm';
@@ -19,7 +19,7 @@ export class SettingService {
     for (const elem of settings) {
       const { id, value, name } = elem;
       const fetchedSetting = await this.settingRepository.findOne({ where: { id, name }, order: { id: 'ASC' } });
-      if (!fetchedSetting) throw new NotFoundException(ErrorResponseMessages.settingsNotExists);
+      if (!fetchedSetting) throw new NotFoundException(SettingErrorMessages.settingsNotExists);
       fetchedSetting.value = value;
       settingsToBeUpdated.push(fetchedSetting);
     }

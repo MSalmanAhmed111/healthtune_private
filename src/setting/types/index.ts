@@ -5,3 +5,11 @@ export const languages = [
 ];
 
 export const languageNames = languages.map((x) => x.name);
+
+export enum SettingNames {
+  Language = 'Language',
+}
+
+export const SettingTypes: { [key in SettingNames]: string } = {
+  [SettingNames.Language]: 'string',
+};
