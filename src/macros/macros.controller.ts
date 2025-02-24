@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete } from '@nestjs/common';
 import { MacrosService } from './macros.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
@@ -37,5 +37,12 @@ export class MacrosController {
   @SwaggerApiResponse('Get a macro by ID')
   async getMacro(@Param('id', ValidateId) macroId: number) {
     return await this.macrosService.getMacro(macroId);
+  }
+
+  @Delete('/:id')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Delete a macro by ID')
+  async deleteMacros(@Param('id', ValidateId) macroId: number) {
+    return await this.macrosService.deleteMacros(macroId);
   }
 }

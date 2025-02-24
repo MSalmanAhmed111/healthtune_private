@@ -57,4 +57,11 @@ export class MacrosService {
     if (!macro) throw new NotFoundException(MacroErrorMessages.macroNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: macro };
   }
+
+  async deleteMacros(macroId: number): Promise<ApiMessageData> {
+    const macro = await this.macroRepository.findOne({ where: { id: macroId } });
+    if (!macro) throw new NotFoundException(MacroErrorMessages.macroNotExists);
+    await this.macroRepository.delete({ id: macroId });
+    return { message: SuccessResponseMessages.successGeneral, data: macro };
+  }
 }
