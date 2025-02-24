@@ -29,3 +29,12 @@ export enum SortEnum {
   ASC = 'ASC',
   DESC = 'DESC',
 }
+
+export enum SettingNames {
+  Language = 'Language',
+}
+
+
+export const SettingTypes: { [key in SettingNames]: string } = {
+  [SettingNames.Language]: 'string',
+};

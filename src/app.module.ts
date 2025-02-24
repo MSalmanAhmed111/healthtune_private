@@ -14,6 +14,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from '@guards/auth.guard';
 import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
 import { UserModule } from './user/user.module';
+import { SettingModule } from './setting/setting.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UserModule } from './user/user.module';
     AuthModule,
     ClerkWebhookModule,
     UserModule,
+    SettingModule,
   ],
   controllers: [AppController],
   providers: [
