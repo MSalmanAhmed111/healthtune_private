@@ -30,10 +30,10 @@ import { ClerkAuthGuard } from '@guards/auth.guard';
   providers: [
     AppService,
     ClerkClientProvider,
-    {
-      provide: APP_GUARD,
-      useClass: ClerkAuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ClerkAuthGuard,
+    // },
   ],
 })
 export class AppModule {}
