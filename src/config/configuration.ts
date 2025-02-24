@@ -35,5 +35,6 @@ export default () => ({
   creds: {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     clerkSecretKey: process.env.CLERK_SECRET_KEY,
+    clerkWebhookSigningSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET,
   },
 });

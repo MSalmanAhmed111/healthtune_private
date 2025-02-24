@@ -7,9 +7,11 @@ import { SwaggerModule } from '@nestjs/swagger';
 import { createDocument } from '@swagger/swagger';
 import * as express from 'express';
 import helmet from 'helmet';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: true });
+  //app.use(bodyParser.json({ verify: (req, res, buf) => { req = buf; } }));
   const configService = app.get(ConfigService);
   const appPrefix: string = configService.get<string>('app.prefix');
   const docsPrefix: string = configService.get<string>('app.docsPrefix');

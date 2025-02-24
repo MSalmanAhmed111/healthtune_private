@@ -1,5 +1,5 @@
-import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
-import { BaseEntity, Note, Transcript } from 'src/entity';
+import { Entity, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
+import { BaseEntity, Note, Transcript, User } from 'src/entity';
 import { GenderEnum, SessionStatusEnum } from '@types';
 
 @Entity({ name: 'sessions' })
@@ -29,4 +29,11 @@ export class Session extends BaseEntity {
   @OneToOne(() => Note, (note) => note.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
   @JoinColumn()
   note: Note;
+
+  @Column()
+  userId: number;
+
+  @ManyToOne(() => User, (user) => user.sessions)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 }

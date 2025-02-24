@@ -12,6 +12,8 @@ import { ClerkClientProvider } from './common/providers';
 import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from '@guards/auth.guard';
+import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { ClerkAuthGuard } from '@guards/auth.guard';
     MacrosModule,
     TemplatesModule,
     AuthModule,
+    ClerkWebhookModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [
