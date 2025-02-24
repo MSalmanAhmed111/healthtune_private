@@ -21,10 +21,7 @@ export class SessionService {
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientName, sex, sessionType, noteFormat, language } = reqBody;
-
-    let user = await this.userRepository.findOne({ where: [{ id: userId }] });
-
-    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, userId: user.id });
+    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, userId });
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };
@@ -62,6 +59,34 @@ export class SessionService {
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
+  }
+
+  async getUserSessions(getSessionsDto: PaginationUserQueryDto, userId: number): Promise<ApiMessageDataPagination> {
+    const { query, page, limit, sort = 'DESC' } = getSessionsDto;
+    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
+
+    if (query) {
+      qb.andWhere(
+        new Brackets((qb) => {
+          qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
+        }),
+      );
+    }
+    qb.andWhere('session.userId = :userId', { userId });
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [sessions, total] = await qb.getManyAndCount();
+
+    const lastPage = Math.ceil(total / limit);
+    return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
+  }
+
+  async getUserSession(sessionId: number, userId: number): Promise<ApiMessageData> {
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId, userId }, relations: ['note', 'transcript'] });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
   async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {

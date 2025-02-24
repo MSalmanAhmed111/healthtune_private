@@ -1,34 +1,47 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param, HttpCode, HttpStatus, Query, Req, Body, Put } from '@nestjs/common';
 import { UserService } from './user.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { SwaggerApiResponse } from '@decorators';
+import { PaginationUserQueryDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { ValidateId } from '@pipes/validate-id.pipe';
+import { Request } from 'express';
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  @Get('/:id')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user')
+  async getCurrentUser(@Req() req: Request) {
+    return await this.userService.getUser(+req.user.id);
   }
 
-  @Get()
-  findAll() {
-    return this.userService.findAll();
+  @Put('/:id')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user')
+  async updateCurrentUser(@Req() req: Request, @Body() reqBody: UpdateCurrentUserDto) {
+    return await this.userService.updateCurrentUser(+req.user.id, reqBody);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(+id);
-  }
+  // ? ADMIN APIS
+  // @Get('/')
+  // @HttpCode(HttpStatus.OK)
+  // @SwaggerApiResponse('Get all user sessions')
+  // async getUsers(@Query() queryParams: PaginationUserQueryDto, @Req() req: Request) {
+  //   return await this.userService.getUsers(queryParams);
+  // }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
-  }
+  // @Get('/:id')
+  // @HttpCode(HttpStatus.OK)
+  // @SwaggerApiResponse('Get a user session')
+  // async getUser(@Param('id', ValidateId) id: number) {
+  //   return await this.userService.getUser(id);
+  // }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
-  }
+  // @Put('/:id')
+  // @HttpCode(HttpStatus.OK)
+  // @SwaggerApiResponse('Get current user')
+  // async updateUser(@Req() req: Request, @Body() reqBody: UpdateUserDto) {
+  //   return await this.userService.updateUser(+req.user.id, reqBody);
+  // }
 }
