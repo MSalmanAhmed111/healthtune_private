@@ -43,8 +43,8 @@ export class SessionController {
   @Get('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
-  async getUserSession(@Query() queryParams: PaginationUserQueryDto, @Req() req: Request) {
-    return await this.sessionService.getUserSessions(queryParams, +req.user.id);
+  async getUserSession(@Param('id', ValidateId) sessionId: number, @Req() req: Request) {
+    return await this.sessionService.getUserSession(sessionId, +req.user.id);
   }
 
   // ? ADMIN APIS
