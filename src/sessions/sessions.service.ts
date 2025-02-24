@@ -22,7 +22,7 @@ export class SessionService {
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientName, sex, sessionType, noteFormat, language } = reqBody;
 
-    let user = await this.userRepository.findOne({ where: [{ id: userId }] });
+    const user = await this.userRepository.findOne({ where: [{ id: userId }] });
 
     const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, userId: user.id });
     await this.sessionRepository.save(session);
