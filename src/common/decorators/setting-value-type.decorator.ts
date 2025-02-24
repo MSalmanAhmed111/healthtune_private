@@ -2,6 +2,7 @@ import { registerDecorator, ValidationOptions, ValidationArguments } from 'class
 import { SettingNames, SettingTypes } from '@types';
 import { languageNames } from '@types';
 import { SettingDto } from 'src/setting/dto';
+import { SettingErrorMessages } from '@messages';
 
 export function IsValidSettingType(validationOptions?: ValidationOptions) {
   return function (object: Object, propertyName: string) {
@@ -44,7 +45,7 @@ export function IsValidSettingType(validationOptions?: ValidationOptions) {
           const settingName = args.object['name'];
 
           const isSettingNameExists = Object.values(SettingNames).includes(settingName);
-          if (!isSettingNameExists) return 'Invalid setting name specified';
+          if (!isSettingNameExists) return SettingErrorMessages.invalidSettingName;
           const expectedType = settingName ? SettingTypes[settingName] : 'unknown';
 
           switch (settingName) {
