@@ -4,3 +4,4 @@ export * from 'src/sessions/messages';
 export * from 'src/macros/messages';
 export * from 'src/templates/messages';
 export * from 'src/user/messages';
+export * from 'src/patient/messages';
