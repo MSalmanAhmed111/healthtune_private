@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, User } from 'src/entity';
+import { Session, Note, Transcript, DoctorNotes } from '@entities';
 import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto } from 'src/dto';
@@ -13,10 +13,10 @@ export class SessionService {
     private readonly sessionRepository: Repository<Session>,
     @InjectRepository(Note)
     private readonly noteRepository: Repository<Note>,
+    @InjectRepository(DoctorNotes)
+    private readonly doctorNoteRepository: Repository<DoctorNotes>,
     @InjectRepository(Transcript)
     private readonly transcriptRepository: Repository<Transcript>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
@@ -41,6 +41,22 @@ export class SessionService {
 
     await this.sessionRepository.save(session);
     return { message: SuccessResponseMessages.successGeneral, data: note };
+  }
+
+  async addDoctorNotesToSession(sessionId: number, createNoteBody: AddNoteDto): Promise<ApiMessageData> {
+    const { content } = createNoteBody;
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+
+    let doctorNote = await this.doctorNoteRepository.findOne({ where: { sessionId } });
+    if (doctorNote) doctorNote.content = content || doctorNote.content;
+    else doctorNote = this.doctorNoteRepository.create({ sessionId, content });
+
+    doctorNote = await this.doctorNoteRepository.save(doctorNote);
+    session.doctorNotes = doctorNote;
+
+    await this.sessionRepository.save(session);
+    return { message: SuccessResponseMessages.successGeneral, data: doctorNote };
   }
 
   async addTranscriptToSession(sessionId: number, reqBody: AddTranscriptDto): Promise<ApiMessageData> {
@@ -112,7 +128,7 @@ export class SessionService {
   }
 
   async getSession(sessionId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript'] });
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
