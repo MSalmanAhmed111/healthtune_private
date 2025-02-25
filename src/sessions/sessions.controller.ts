@@ -33,6 +33,13 @@ export class SessionController {
     return await this.sessionService.addTranscriptToSession(sessionId, reqBody);
   }
 
+  @Put('/:id/doctor-note')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Add a doctor note to a session')
+  async addDoctorNotesToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
+    return await this.sessionService.addDoctorNotesToSession(sessionId, reqBody);
+  }
+
   @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user sessions')
