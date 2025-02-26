@@ -93,6 +93,9 @@ export class PatientInsuranceDetails {
 
   @ApiPropertyOptional({ description: 'Insurance Expiry Date', example: '2026-12-31', type: Date })
   @IsOptional()
+  @IsNotEmpty()
+  @Trim()
+  @Type(() => Date)
   @IsDate()
   insuranceExpiryDate?: Date;
 
@@ -105,6 +108,9 @@ export class PatientInsuranceDetails {
 export class PatientAdmissionDetails {
   @ApiPropertyOptional({ description: 'Admission Date', example: '2024-02-01', type: Date })
   @IsOptional()
+  @IsNotEmpty()
+  @Trim()
+  @Type(() => Date)
   @IsDate()
   admissionDate?: Date;
 
@@ -133,6 +139,9 @@ export class PatientAdmissionDetails {
 
   @ApiPropertyOptional({ description: 'Discharge Date', example: '2024-02-10', type: Date })
   @IsOptional()
+  @IsNotEmpty()
+  @Trim()
+  @Type(() => Date)
   @IsDate()
   dischargeDate?: Date;
 }
@@ -163,6 +172,9 @@ export class CreatePatientDto {
 
   @ApiPropertyOptional({ description: 'Date of Birth', example: '1990-05-15', type: Date })
   @IsOptional()
+  @IsNotEmpty()
+  @Trim()
+  @Type(() => Date)
   @IsDate()
   dateOfBirth?: Date;
 

@@ -5,6 +5,7 @@ import { ApiMessageData } from '@types';
 import { CreatePatientDto, GetPatientsDto, PaginationQueryDto, UpdatePatientDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Patient')
 @Controller('patient')

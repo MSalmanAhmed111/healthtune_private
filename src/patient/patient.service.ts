@@ -16,9 +16,9 @@ export class PatientService {
   async createPatient(reqBody: CreatePatientDto): Promise<ApiMessageData> {
     const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails } = reqBody;
     let mreCount = '0';
-    let patient = await this.patientRepository.findOne({ order: { id: 'DESC' } });
+    let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
     if (patient) mreCount = patient.id.toString();
-    const mreNumber = `MRE-${mreCount.padStart(7, '0')}`;
+    const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
     patient = this.patientRepository.create({
       mreNumber,
       firstName,
