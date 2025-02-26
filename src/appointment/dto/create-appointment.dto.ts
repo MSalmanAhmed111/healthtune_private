@@ -21,7 +21,8 @@ export class CreateAppointmentDto {
   @ApiProperty({ example: '2024-02-20T10:30:00.000Z', description: 'Appointment date and time (ISO 8601 format)' })
   @IsNotEmpty()
   @IsDateString()
-  appointmentDate: string;
+  @Type(()=>Date)
+  appointmentDate: Date;
 
   @ApiPropertyOptional({ example: 'Consultation', description: 'Type of appointment (e.g., Consultation, Follow-up, Physical Exam)' })
   @IsOptional()

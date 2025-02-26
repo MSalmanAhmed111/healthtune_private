@@ -15,6 +15,7 @@ import { ClerkAuthGuard } from '@guards/auth.guard';
 import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
 import { UserModule } from './user/user.module';
 import { PatientModule } from './patient/patient.module';
+import { AppointmentModule } from './appointment/appointment.module';
 
 @Module({
   imports: [
@@ -30,7 +31,8 @@ import { PatientModule } from './patient/patient.module';
     AuthModule,
     ClerkWebhookModule,
     UserModule,
-    PatientModule
+    PatientModule,
+    AppointmentModule,
   ],
   controllers: [AppController],
   providers: [

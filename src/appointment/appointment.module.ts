@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
 import { AppointmentController } from './appointment.controller';
-import { Appointment } from '@entities';
+import { Appointment, User, Patient } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Appointment])],
+  imports: [TypeOrmModule.forFeature([Appointment, Patient, User])],
   controllers: [AppointmentController],
   providers: [AppointmentService],
 })
