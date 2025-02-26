@@ -14,6 +14,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from '@guards/auth.guard';
 import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
 import { UserModule } from './user/user.module';
+import { SettingModule } from './setting/setting.module';
 import { PatientModule } from './patient/patient.module';
 import { AppointmentModule } from './appointment/appointment.module';
 
@@ -31,6 +32,7 @@ import { AppointmentModule } from './appointment/appointment.module';
     AuthModule,
     ClerkWebhookModule,
     UserModule,
+    SettingModule,
     PatientModule,
     AppointmentModule,
   ],
@@ -38,10 +40,10 @@ import { AppointmentModule } from './appointment/appointment.module';
   providers: [
     AppService,
     ClerkClientProvider,
-    {
-      provide: APP_GUARD,
-      useClass: ClerkAuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ClerkAuthGuard,
+    // },
   ],
 })
 export class AppModule {}
