@@ -5,3 +5,4 @@ export * from 'src/macros/entity';
 export * from 'src/templates/entity';
 export * from 'src/user/entity';
 export * from 'src/patient/entity';
+export * from 'src/appointment/entity';
