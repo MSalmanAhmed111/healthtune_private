@@ -82,24 +82,40 @@ export class AppointmentService {
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
 
-  async getAppointments(getAppointmentDto: GetAppointmentsDto): Promise<ApiMessageDataPagination> {
-    const { query, page = 1, limit = 10, doctorId, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
+  async getUserAppointments(getAppointmentDto: GetAppointmentsDto, userId: number): Promise<ApiMessageDataPagination> {
+    const { query, page = 1, limit = 10, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
 
-    const qb = this.appointmentRepository.createQueryBuilder('appointment').leftJoinAndSelect('appointment.doctor', 'doctor').leftJoinAndSelect('appointment.patient', 'patient');
+    const qb = this.appointmentRepository
+      .createQueryBuilder('appointment')
+      .leftJoinAndMapOne('appointment.doctor', User, 'doctor', 'doctor.id = appointment.doctorId')
+      .leftJoinAndMapOne('appointment.patient', Patient, 'patient', 'patient.id = appointment.patientId')
+      .select([
+        'appointment',
+        'doctor.firstName',
+        'doctor.lastName',
+        'doctor.username',
+        'doctor.email',
+        'patient.mreNumber',
+        'patient.firstName',
+        'patient.lastName',
+        'patient.email'
+      ]);
 
     if (query) {
       qb.andWhere(
         new Brackets((qb) => {
           qb.where('LOWER(patient.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
+          .orWhere('LOWER(patient.mreNumber) LIKE LOWER(:query)', { query: `%${query}%` })
             .orWhere('LOWER(patient.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(patient.email) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(doctor.email) LIKE LOWER(:query)', { query: `%${query}%` })
             .orWhere('LOWER(doctor.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
             .orWhere('LOWER(doctor.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(appointment.reason) LIKE LOWER(:query)', { query: `%${query}%` });
         }),
       );
     }
 
-    if (doctorId) qb.andWhere('appointment.doctorId = :doctorId', { doctorId });
+    qb.andWhere('appointment.doctorId = :userId', { userId });
     if (patientId) qb.andWhere('appointment.patientId = :patientId', { patientId });
     if (status) qb.andWhere('appointment.status = :status', { status });
     if (appointmentType) qb.andWhere('LOWER(appointment.appointmentType) = LOWER(:appointmentType)', { appointmentType });
@@ -110,13 +126,16 @@ export class AppointmentService {
     if (minConsultationFee) qb.andWhere('appointment.consultationFee >= :minConsultationFee', { minConsultationFee });
     if (maxConsultationFee) qb.andWhere('appointment.consultationFee <= :maxConsultationFee', { maxConsultationFee });
 
-    if (startDate) qb.andWhere('appointment.startTime >= :startDate', { startDate });
-    if (endDate) qb.andWhere('appointment.endTime <= :endDate', { endDate });
+    if (startDate) qb.andWhere('appointment.appointmentDate >= :startDate', { startDate });
+    if (endDate) qb.andWhere('appointment.appointmentDate <= :endDate', { endDate });
 
     qb.orderBy('appointment.createdAt', sort);
     qb.skip((page - 1) * limit).take(limit);
 
-    const [appointments, total] = await qb.getManyAndCount();
+    const [appointments, total] = await Promise.all([
+      qb.getMany(), // Get the data
+      qb.getCount()    // Get the count
+    ]);
     const lastPage = Math.ceil(total / limit);
 
     return {
@@ -128,8 +147,8 @@ export class AppointmentService {
     };
   }
 
-  async getAppointment(appointmentId: number): Promise<ApiMessageData> {
-    const appointment = (await this.appointmentRepository.findOne({ where: { id: appointmentId } })) as Appointment & { doctor?: object; patient?: object };
+  async getUserAppointment(appointmentId: number, userId: number): Promise<ApiMessageData> {
+    const appointment = (await this.appointmentRepository.findOne({ where: { id: appointmentId, doctorId: userId } })) as Appointment & { doctor?: object; patient?: object };
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
     if (appointment.doctorId) {
       const doctor = await this.userRepository.findOne({ where: { id: appointment.doctorId }, select: { firstName: true, lastName: true, email: true } });
@@ -142,10 +161,79 @@ export class AppointmentService {
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
 
-  async deleteAppointment(appointmentId: number): Promise<ApiMessageData> {
-    const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
+  async deleteUserAppointment(appointmentId: number, userId: number): Promise<ApiMessageData> {
+    const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId, doctorId: userId } });
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
     await this.appointmentRepository.delete({ id: appointmentId });
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
+
+  // ADMIN APIS
+
+  // async getAppointments(getAppointmentDto: GetAppointmentsDto): Promise<ApiMessageDataPagination> {
+  //   const { query, page = 1, limit = 10, doctorId, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
+
+  //   const qb = this.appointmentRepository.createQueryBuilder('appointment').leftJoinAndSelect('appointment.doctor', 'doctor').leftJoinAndSelect('appointment.patient', 'patient');
+
+  //   if (query) {
+  //     qb.andWhere(
+  //       new Brackets((qb) => {
+  //         qb.where('LOWER(patient.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(patient.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(doctor.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(doctor.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(appointment.reason) LIKE LOWER(:query)', { query: `%${query}%` });
+  //       }),
+  //     );
+  //   }
+
+  //   if (doctorId) qb.andWhere('appointment.doctorId = :doctorId', { doctorId });
+  //   if (patientId) qb.andWhere('appointment.patientId = :patientId', { patientId });
+  //   if (status) qb.andWhere('appointment.status = :status', { status });
+  //   if (appointmentType) qb.andWhere('LOWER(appointment.appointmentType) = LOWER(:appointmentType)', { appointmentType });
+  //   if (paymentStatus) qb.andWhere('LOWER(appointment.paymentStatus) = LOWER(:paymentStatus)', { paymentStatus });
+  //   if (isTelemedicine !== undefined) qb.andWhere('appointment.isTelemedicine = :isTelemedicine', { isTelemedicine });
+  //   if (location) qb.andWhere('LOWER(appointment.location) = LOWER(:location)', { location });
+
+  //   if (minConsultationFee) qb.andWhere('appointment.consultationFee >= :minConsultationFee', { minConsultationFee });
+  //   if (maxConsultationFee) qb.andWhere('appointment.consultationFee <= :maxConsultationFee', { maxConsultationFee });
+
+  //   if (startDate) qb.andWhere('appointment.startTime >= :startDate', { startDate });
+  //   if (endDate) qb.andWhere('appointment.endTime <= :endDate', { endDate });
+
+  //   qb.orderBy('appointment.createdAt', sort);
+  //   qb.skip((page - 1) * limit).take(limit);
+
+  //   const [appointments, total] = await qb.getManyAndCount();
+  //   const lastPage = Math.ceil(total / limit);
+
+  //   return {
+  //     message: SuccessResponseMessages.successGeneral,
+  //     data: appointments,
+  //     page,
+  //     total,
+  //     lastPage,
+  //   };
+  // }
+
+  // async getAppointment(appointmentId: number): Promise<ApiMessageData> {
+  //   const appointment = (await this.appointmentRepository.findOne({ where: { id: appointmentId } })) as Appointment & { doctor?: object; patient?: object };
+  //   if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
+  //   if (appointment.doctorId) {
+  //     const doctor = await this.userRepository.findOne({ where: { id: appointment.doctorId }, select: { firstName: true, lastName: true, email: true } });
+  //     appointment.doctor = doctor;
+  //   }
+  //   if (appointment.patientId) {
+  //     const patient = await this.patientRepository.findOne({ where: { id: appointment.patientId }, select: { firstName: true, lastName: true, mreNumber: true, email: true } });
+  //     appointment.patient = patient;
+  //   }
+  //   return { message: SuccessResponseMessages.successGeneral, data: appointment };
+  // }
+
+  // async deleteAppointment(appointmentId: number): Promise<ApiMessageData> {
+  //   const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
+  //   if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
+  //   await this.appointmentRepository.delete({ id: appointmentId });
+  //   return { message: SuccessResponseMessages.successGeneral, data: appointment };
+  // }
 }

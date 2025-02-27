@@ -9,16 +9,16 @@ import { Request } from 'express';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get('/:id')
+  @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get current user')
   async getCurrentUser(@Req() req: Request) {
     return await this.userService.getUser(+req.user.id);
   }
 
-  @Put('/:id')
+  @Put('/')
   @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Get current user')
+  @SwaggerApiResponse('Update current user')
   async updateCurrentUser(@Req() req: Request, @Body() reqBody: UpdateCurrentUserDto) {
     return await this.userService.updateCurrentUser(+req.user.id, reqBody);
   }

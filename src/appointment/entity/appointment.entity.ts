@@ -2,7 +2,7 @@ import { Patient, User } from '@entities';
 import { AppointmentStatus } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity()
+@Entity({ name: 'appointment' })
 export class Appointment {
   @PrimaryGeneratedColumn()
   id: number;

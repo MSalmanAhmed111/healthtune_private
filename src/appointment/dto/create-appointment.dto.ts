@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
+import { IsBoolean, IsDate, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
 import { Trim } from '@decorators';
 import { Type } from 'class-transformer';
 
@@ -20,8 +20,9 @@ export class CreateAppointmentDto {
 
   @ApiProperty({ example: '2024-02-20T10:30:00.000Z', description: 'Appointment date and time (ISO 8601 format)' })
   @IsNotEmpty()
-  @IsDateString()
-  @Type(()=>Date)
+  @Trim()
+  @Type(() => Date)
+  @IsDate()
   appointmentDate: Date;
 
   @ApiPropertyOptional({ example: 'Consultation', description: 'Type of appointment (e.g., Consultation, Follow-up, Physical Exam)' })

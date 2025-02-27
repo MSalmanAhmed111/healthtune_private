@@ -1,7 +1,7 @@
 import { Trim } from '@decorators';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentStatus, SortEnum } from '@types';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
 import { PaginationQueryDto } from '@dtos';
 
@@ -61,6 +61,7 @@ export class GetAppointmentsDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => value === 'true')
   @ApiPropertyOptional({ description: 'Filter by telemedicine appointments (true/false)' })
   isTelemedicine?: boolean;
 
