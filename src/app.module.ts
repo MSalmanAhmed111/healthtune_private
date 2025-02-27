@@ -35,15 +35,16 @@ import { AppointmentModule } from './appointment/appointment.module';
     SettingModule,
     PatientModule,
     AppointmentModule,
+    SettingModule
   ],
   controllers: [AppController],
   providers: [
     AppService,
     ClerkClientProvider,
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: ClerkAuthGuard,
-    // },
+    {
+      provide: APP_GUARD,
+      useClass: ClerkAuthGuard,
+    },
   ],
 })
 export class AppModule {}
