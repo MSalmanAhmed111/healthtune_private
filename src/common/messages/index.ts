@@ -7,3 +7,4 @@ export * from 'src/user/messages';
 export * from 'src/setting/messages';
 export * from 'src/patient/messages';
 export * from 'src/appointment/messages';
+export * from 'src/file-storage/messages';

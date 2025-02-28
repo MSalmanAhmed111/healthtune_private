@@ -17,6 +17,7 @@ import { UserModule } from './user/user.module';
 import { SettingModule } from './setting/setting.module';
 import { PatientModule } from './patient/patient.module';
 import { AppointmentModule } from './appointment/appointment.module';
+import { FileStorageModule } from './file-storage/file-storage.module';
 
 @Module({
   imports: [
@@ -31,12 +32,11 @@ import { AppointmentModule } from './appointment/appointment.module';
     TemplatesModule,
     AuthModule,
     ClerkWebhookModule,
-    UserModule,
     SettingModule,
     PatientModule,
     AppointmentModule,
-    SettingModule,
-    UserModule
+    UserModule,
+    FileStorageModule,
   ],
   controllers: [AppController],
   providers: [
