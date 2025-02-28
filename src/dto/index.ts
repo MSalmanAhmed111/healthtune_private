@@ -7,3 +7,4 @@ export * from 'src/setting/dto';
 export * from 'src/user/dto';
 export * from 'src/patient/dto';
 export * from 'src/appointment/dto';
+export * from 'src/file-storage/dto';

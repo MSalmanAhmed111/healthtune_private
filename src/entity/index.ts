@@ -7,3 +7,4 @@ export * from 'src/user/entity';
 export * from 'src/patient/entity';
 export * from 'src/appointment/entity';
 export * from 'src/setting/entity';
+export * from 'src/file-storage/entity';
