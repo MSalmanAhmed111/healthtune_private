@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { SessionController } from './sessions.controller';
-import { DoctorNotes, Note, Session, Transcript, User } from '@entities';
+import { DiagnosisCodes, DoctorNotes, Note, Session, Transcript } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Session, Note, Transcript, DoctorNotes])],
+  imports: [TypeOrmModule.forFeature([Session, Note, Transcript, DoctorNotes, DiagnosisCodes])],
   controllers: [SessionController],
   providers: [SessionService],
 })

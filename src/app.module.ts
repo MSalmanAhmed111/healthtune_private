@@ -9,7 +9,6 @@ import { dataSourceOptions } from './db/db-config';
 import { MacrosModule } from './macros/macros.module';
 import { TemplatesModule } from './templates/templates.module';
 import { ClerkClientProvider } from './common/providers';
-import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from '@guards/auth.guard';
 import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
@@ -18,6 +17,7 @@ import { SettingModule } from './setting/setting.module';
 import { PatientModule } from './patient/patient.module';
 import { AppointmentModule } from './appointment/appointment.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -30,13 +30,13 @@ import { FileStorageModule } from './file-storage/file-storage.module';
     SessionsModule,
     MacrosModule,
     TemplatesModule,
-    AuthModule,
     ClerkWebhookModule,
     SettingModule,
     PatientModule,
     AppointmentModule,
     UserModule,
     FileStorageModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [

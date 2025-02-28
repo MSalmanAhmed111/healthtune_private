@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, R
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationUserQueryDto } from 'src/dto';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
@@ -11,6 +11,13 @@ import { Request } from 'express';
 @Controller('session')
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
+
+  @Get('/stats')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get session stats')
+  async getSessionStats(@Query() queryParams: GetSessionStatsDto) {
+    return await this.sessionService.getSessionStats(queryParams);
+  }
 
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
@@ -38,6 +45,13 @@ export class SessionController {
   @SwaggerApiResponse('Add a doctor note to a session')
   async addDoctorNotesToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
     return await this.sessionService.addDoctorNotesToSession(sessionId, reqBody);
+  }
+
+  @Put('/:id/diagnosis-codes')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Add diagnosis codes to a session')
+  async addDiagnosisCodes(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
+    return await this.sessionService.addDiagnosisCodes(sessionId, reqBody);
   }
 
   @Get('/')

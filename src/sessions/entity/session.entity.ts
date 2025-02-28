@@ -1,5 +1,5 @@
 import { Entity, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity, DoctorNotes, Note, Transcript, User } from 'src/entity';
+import { BaseEntity, DiagnosisCodes, DoctorNotes, Note, Transcript, User } from 'src/entity';
 import { GenderEnum, SessionStatusEnum } from '@types';
 
 @Entity({ name: 'sessions' })
@@ -19,6 +19,9 @@ export class Session extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   language?: string;
 
+  @Column({ type: 'decimal', nullable: true, default: null })
+  duration?: number;
+
   @Column({ type: 'varchar', default: SessionStatusEnum.PROCESS })
   status: SessionStatusEnum;
 
@@ -33,6 +36,10 @@ export class Session extends BaseEntity {
   @OneToOne(() => DoctorNotes, (doctorNotes) => doctorNotes.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
   @JoinColumn()
   doctorNotes: DoctorNotes;
+
+  @OneToOne(() => DiagnosisCodes, (diagnosisCodes) => diagnosisCodes.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
+  @JoinColumn()
+  diagnosisCodes: DiagnosisCodes;
 
   @Column()
   userId: number;

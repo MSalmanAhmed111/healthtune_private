@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes } from '@entities';
-import { Brackets, Repository } from 'typeorm';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes } from '@entities';
+import { Between, Brackets, MoreThanOrEqual, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto } from 'src/dto';
 import { SessionErrorMessages, SuccessResponseMessages } from '@messages';
 
 @Injectable()
@@ -17,6 +17,8 @@ export class SessionService {
     private readonly doctorNoteRepository: Repository<DoctorNotes>,
     @InjectRepository(Transcript)
     private readonly transcriptRepository: Repository<Transcript>,
+    @InjectRepository(DiagnosisCodes)
+    private readonly diagnosisCodestRepository: Repository<DiagnosisCodes>,
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
@@ -59,8 +61,24 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: doctorNote };
   }
 
+  async addDiagnosisCodes(sessionId: number, createNoteBody: AddNoteDto): Promise<ApiMessageData> {
+    const { content } = createNoteBody;
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+
+    let diagnosisCodes = await this.diagnosisCodestRepository.findOne({ where: { sessionId } });
+    if (diagnosisCodes) diagnosisCodes.content = content || diagnosisCodes.content;
+    else diagnosisCodes = this.diagnosisCodestRepository.create({ sessionId, content });
+
+    diagnosisCodes = await this.diagnosisCodestRepository.save(diagnosisCodes);
+    session.diagnosisCodes = diagnosisCodes;
+
+    await this.sessionRepository.save(session);
+    return { message: SuccessResponseMessages.successGeneral, data: diagnosisCodes };
+  }
+
   async addTranscriptToSession(sessionId: number, reqBody: AddTranscriptDto): Promise<ApiMessageData> {
-    const { assemblyId, content } = reqBody;
+    const { assemblyId, content, duration } = reqBody;
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
@@ -71,6 +89,7 @@ export class SessionService {
 
     transcript = await this.transcriptRepository.save(transcript);
     session.status = SessionStatusEnum.COMPLETED;
+    session.duration = duration || session.duration;
     session.transcript = transcript;
     await this.sessionRepository.save(session);
 
@@ -100,36 +119,53 @@ export class SessionService {
   }
 
   async getUserSession(sessionId: number, userId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId, userId }, relations: ['note', 'transcript'] });
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId, userId }, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
-  async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
-    const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
-    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
-
-    if (query) {
-      qb.andWhere(
-        new Brackets((qb) => {
-          qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
-        }),
-      );
-    }
-    if (userId) qb.andWhere('session.userId = :userId', { userId: userId });
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [sessions, total] = await qb.getManyAndCount();
-
-    const lastPage = Math.ceil(total / limit);
-    return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
+  async getSessionStats(reqQueryParams: GetSessionStatsDto): Promise<ApiMessageData> {
+    let { startDate, endDate, userId } = reqQueryParams;
+    startDate = startDate ? new Date(startDate) : new Date('2020-01-01T00:00:00.000Z');
+    endDate = endDate ? new Date(endDate) : new Date();
+    const sessionCount = await this.sessionRepository.count({ where: { userId, createdAt: Between(startDate, endDate) } });
+    const sessionCompletedCount = await this.sessionRepository.count({
+      where: { userId, updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED },
+    });
+    const sessionDurationAvg = await this.sessionRepository.average('duration', { userId, createdAt: Between(startDate, endDate) });
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: { sessionCount, sessionCompletedCount, sessionDurationAvg },
+    };
   }
 
-  async getSession(sessionId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes'] });
-    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
-    return { message: SuccessResponseMessages.successGeneral, data: session };
-  }
+  // ADMIN APIS
+
+  // async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
+  //   const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
+  //   const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
+
+  //   if (query) {
+  //     qb.andWhere(
+  //       new Brackets((qb) => {
+  //         qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
+  //           .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
+  //       }),
+  //     );
+  //   }
+  //   if (userId) qb.andWhere('session.userId = :userId', { userId: userId });
+  //   qb.skip((page - 1) * limit).take(limit);
+
+  //   const [sessions, total] = await qb.getManyAndCount();
+
+  //   const lastPage = Math.ceil(total / limit);
+  //   return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
+  // }
+
+  // async getSession(sessionId: number): Promise<ApiMessageData> {
+  //   const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes'] });
+  //   if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+  //   return { message: SuccessResponseMessages.successGeneral, data: session };
+  // }
 }

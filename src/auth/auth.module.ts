@@ -6,10 +6,13 @@ import { ClerkStrategy } from '@strategies/clert-auth.strategy';
 import { JwtModule } from '@nestjs/jwt';
 import { User } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User]), PassportModule, ConfigModule, JwtModule],
-  providers: [ClerkStrategy, ClerkClientProvider],
+  controllers: [AuthController],
+  providers: [AuthService, ClerkStrategy, ClerkClientProvider],
   exports: [PassportModule],
 })
 export class AuthModule {}

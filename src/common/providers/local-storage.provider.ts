@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as fs from 'fs';
-import {nanoid} from 'nanoid';
+import { nanoid } from 'nanoid';
 
 import { StorageProviderInterface } from './storage-provider.interface';
 import * as process from 'process';
@@ -32,10 +32,10 @@ export class LocalStorageProvider implements StorageProviderInterface {
 
   deleteFile(fileName: string): void {
     fs.existsSync(this.path + '/' + fileName) && fs.unlinkSync(this.path + '/' + fileName);
-    // console.log(this.path + '/' + fileName);
-    // const fileExists = fs.existsSync(this.path + '/' + fileName);
-    // if (fileExists) fs.unlinkSync(this.path + '/' + fileName);
-    // else throw new BadRequestException(ErrorResponseMessages.fileStorageNotExists);
+    console.log(this.path + '/' + fileName);
+    const fileExists = fs.existsSync(this.path + '/' + fileName);
+    if (fileExists) fs.unlinkSync(this.path + '/' + fileName);
+    else throw new BadRequestException(ErrorResponseMessages.fileNotExists);
   }
 
   deleteFiles(fileNames: string[]): void {
