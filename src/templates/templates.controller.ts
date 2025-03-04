@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
@@ -37,5 +37,12 @@ export class TemplatesController {
   @SwaggerApiResponse('Get a template by ID')
   async getTemplate(@Param('id', ValidateId) templateId: number) {
     return await this.templatesService.getTemplate(templateId);
+  }
+
+  @Delete('/:id')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Delete a template by ID')
+  async deleteTemplate(@Param('id', ValidateId) templateId: number) {
+    return await this.templatesService.deleteTemplate(templateId);
   }
 }

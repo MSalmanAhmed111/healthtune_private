@@ -57,4 +57,11 @@ export class TemplatesService {
     if (!template) throw new NotFoundException(TemplateErrorMessages.templateNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: template };
   }
+
+  async deleteTemplate(templateId: number): Promise<ApiMessageData> {
+    const template = await this.templateRepository.findOne({ where: { id: templateId } });
+    if (!template) throw new NotFoundException(TemplateErrorMessages.templateNotExists);
+    await this.templateRepository.delete({ id: templateId });
+    return { message: SuccessResponseMessages.successGeneral, data: template };
+  }
 }
