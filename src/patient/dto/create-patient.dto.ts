@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsDate, IsBoolean, IsEnum, IsEmail, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsDate, IsBoolean, IsEnum, IsEmail, ValidateNested, Min, IsInt } from 'class-validator';
 import { Trim } from '@decorators';
 import { GenderEnum, BloodTypeEnum, MaritalStatusEnum } from '@types';
 import { AddressDto } from '@dtos';
@@ -199,6 +199,14 @@ export class CreatePatientDto {
   @IsString()
   @Trim()
   occupation?: string;
+
+  @ApiPropertyOptional({ example: '12', description: 'ID of the uploaded profile image' })
+  @IsOptional()
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  profileImage: number;
 
   @ApiPropertyOptional({ description: 'Full Address', type: () => AddressDto })
   @IsOptional()

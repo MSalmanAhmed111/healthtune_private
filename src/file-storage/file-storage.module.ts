@@ -17,5 +17,6 @@ import { FileStorage } from '@entities';
       inject: [ConfigService],
     },
   ],
+  exports: [FileStorageService],
 })
 export class FileStorageModule {}

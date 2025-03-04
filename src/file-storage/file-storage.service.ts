@@ -80,9 +80,12 @@ export class FileStorageService {
 
   async deleteFileStorage(id: number): Promise<ApiMessageData> {
     const fileStorage = await this.fileStorageRepository.findOne({ where: { id } });
-    if (!fileStorage) throw new NotFoundException(FileStorageErrorMessages.fileStorageNotExists);
-    await this.storageProvider.deleteFile(fileStorage.name);
-    await this.fileStorageRepository.delete(fileStorage.id);
+    if (fileStorage) {
+      await this.storageProvider.deleteFile(fileStorage.name);
+      await this.fileStorageRepository.delete(fileStorage.id);
+    }
+    //throw new NotFoundException(FileStorageErrorMessages.fileStorageNotExists);
+
     return {
       message: SuccessResponseMessages.successGeneral,
       data: fileStorage,

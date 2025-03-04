@@ -1,20 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Not, Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination } from '@types';
-import { CreatePatientDto, GetPatientsDto, PaginationQueryDto, UpdatePatientDto } from 'src/dto';
-import { PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { Patient } from '@entities';
+import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
+import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
+import { FileStorage, Patient } from '@entities';
+import { FileStorageService } from 'src/file-storage/file-storage.service';
 
 @Injectable()
 export class PatientService {
   constructor(
     @InjectRepository(Patient)
     private readonly patientRepository: Repository<Patient>,
+    @InjectRepository(FileStorage)
+    private readonly fileStorageRepository: Repository<FileStorage>,
+    private readonly fileStorageService: FileStorageService,
   ) {}
 
   async createPatient(reqBody: CreatePatientDto): Promise<ApiMessageData> {
-    const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails } = reqBody;
+    const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails } = reqBody;
     let mreCount = '0';
     let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
     if (patient) mreCount = patient.id.toString();
@@ -76,13 +80,24 @@ export class PatientService {
           }
         : null,
     });
-    await this.patientRepository.save(patient);
+
+    if (profileImage && profileImage !== patient.profileImage) {
+      const imageExists = this.fileStorageRepository.findOne({ where: { id: profileImage } });
+      if (!imageExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
+      patient.profileImage = profileImage;
+    }
+
+    patient = await this.patientRepository.save(patient);
+    if (patient.profileImage) {
+      const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+      if (image) patient.profileImage = { id: image.id, image: image.name };
+    }
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
   async updatePatient(patientId: number, reqBody: UpdatePatientDto): Promise<ApiMessageData> {
-    const { firstName, lastName, dateOfBirth, gender, maritalStatus, nationality, occupation, address, contactDetails, medicalDetails, insuranceDetails, admissionDetails } = reqBody;
+    const { firstName, lastName, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, contactDetails, medicalDetails, insuranceDetails, admissionDetails } = reqBody;
 
-    const patient = await this.patientRepository.findOne({ where: { id: patientId } });
+    let patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
 
     patient.firstName = firstName || patient.firstName;
@@ -98,7 +113,21 @@ export class PatientService {
     patient.insuranceDetails = insuranceDetails ? { ...patient.insuranceDetails, ...insuranceDetails } : patient.insuranceDetails;
     patient.admissionDetails = admissionDetails ? { ...patient.admissionDetails, ...admissionDetails } : patient.admissionDetails;
 
-    await this.patientRepository.save(patient);
+    if (profileImage && profileImage !== patient.profileImage) {
+      const imageExists = this.fileStorageRepository.findOne({ where: { id: profileImage as number } });
+      if (!imageExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
+      if (patient.profileImage) {
+        const previousImageExists = this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+        if (previousImageExists) await this.fileStorageService.deleteFileStorage(patient.profileImage as number);
+      }
+      patient.profileImage = profileImage;
+    }
+
+    patient = await this.patientRepository.save(patient);
+    if (patient.profileImage) {
+      const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+      if (image) patient.profileImage = { id: image.id, image: image.name };
+    }
 
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
@@ -128,6 +157,13 @@ export class PatientService {
     const [patients, total] = await qb.getManyAndCount();
     const lastPage = Math.ceil(total / limit);
 
+    for (const patient of patients) {
+      if (patient.profileImage) {
+        const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+        if (image) patient.profileImage = { id: image.id, image: image.name };
+      }
+    }
+
     return {
       message: SuccessResponseMessages.successGeneral,
       data: patients,
@@ -140,12 +176,20 @@ export class PatientService {
   async getPatient(patientId: number): Promise<ApiMessageData> {
     const patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+    if (patient.profileImage) {
+      const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+      if (image) patient.profileImage = { id: image.id, image: image.name };
+    }
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
 
   async deletePatient(patientId: number): Promise<ApiMessageData> {
     const patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+    if (patient.profileImage) {
+      const previousImageExists = this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+      if (previousImageExists) await this.fileStorageService.deleteFileStorage(patient.profileImage as number);
+    }
     await this.patientRepository.delete({ id: patientId });
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }

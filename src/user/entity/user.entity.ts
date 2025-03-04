@@ -1,4 +1,5 @@
 import { Session } from '@entities';
+import { imageObject } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 
 @Entity('users')
@@ -23,6 +24,9 @@ export class User {
 
   @Column({ nullable: true })
   imageUrl?: string;
+
+  @Column({ type: 'integer', nullable: true, default: null })
+  profileImage?: number | imageObject;
 
   @Column({ default: false })
   banned: boolean;

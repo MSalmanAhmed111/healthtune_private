@@ -9,5 +9,6 @@ export class UpdateUserDto extends UpdateCurrentUserDto {
   @IsBoolean()
   @ApiPropertyOptional({ description: 'Banned/active/deleted status of user' })
   banned?: boolean;
+
 }
 

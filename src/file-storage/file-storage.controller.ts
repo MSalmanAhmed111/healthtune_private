@@ -4,6 +4,7 @@ import { UploadFileStorageDto, GetFileStorageDto, UpdateFileStorageDto } from '@
 import { ApiResponse } from '@nestjs/swagger';
 import { SuccessResponseMessages } from '@messages';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
+import { ValidateId } from '@pipes/validate-id.pipe';
 
 @Controller('/upload')
 export class FileStorageController {
@@ -35,7 +36,7 @@ export class FileStorageController {
   @HttpCode(HttpStatus.OK)
   @FileUpload('file')
   @SwaggerApiResponse('Update file in storage')
-  async updateFileStorage(@Param('id', ParseIntPipe) id: number, @Body() updateFileStorageDto: UpdateFileStorageDto, @UploadedFile() file: Express.Multer.File) {
+  async updateFileStorage(@Param('id', ValidateId) id: number, @Body() updateFileStorageDto: UpdateFileStorageDto, @UploadedFile() file: Express.Multer.File) {
     return await this.fileStorageService.updateFileStorage(id, updateFileStorageDto, file);
   }
 
