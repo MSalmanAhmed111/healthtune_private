@@ -1,6 +1,6 @@
 import { Entity, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity, DiagnosisCodes, DoctorNotes, Note, Transcript, User } from 'src/entity';
-import { GenderEnum, SessionStatusEnum } from '@types';
+import { fileObject, GenderEnum, SessionStatusEnum } from '@types';
 
 @Entity({ name: 'sessions' })
 export class Session extends BaseEntity {
@@ -24,6 +24,9 @@ export class Session extends BaseEntity {
 
   @Column({ type: 'varchar', default: SessionStatusEnum.PROCESS })
   status: SessionStatusEnum;
+
+  @Column({ type: 'integer', nullable: true, default: null })
+  audioFile?: number | fileObject;
 
   @OneToOne(() => Transcript, (transcript) => transcript.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
   @JoinColumn()

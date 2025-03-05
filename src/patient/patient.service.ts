@@ -90,7 +90,7 @@ export class PatientService {
     patient = await this.patientRepository.save(patient);
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
-      if (image) patient.profileImage = { id: image.id, image: image.name };
+      if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
@@ -126,7 +126,7 @@ export class PatientService {
     patient = await this.patientRepository.save(patient);
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
-      if (image) patient.profileImage = { id: image.id, image: image.name };
+      if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
 
     return { message: SuccessResponseMessages.successGeneral, data: patient };
@@ -160,7 +160,7 @@ export class PatientService {
     for (const patient of patients) {
       if (patient.profileImage) {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
-        if (image) patient.profileImage = { id: image.id, image: image.name };
+        if (image) patient.profileImage = { id: image.id, fileName: image.name };
       }
     }
 
@@ -178,7 +178,7 @@ export class PatientService {
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
-      if (image) patient.profileImage = { id: image.id, image: image.name };
+      if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
