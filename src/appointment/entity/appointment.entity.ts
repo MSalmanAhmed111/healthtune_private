@@ -46,6 +46,9 @@ export class Appointment {
   @Column({ type: 'varchar', length: 50, nullable: true })
   roomNumber: string; // If it's an in-person visit
 
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  color: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

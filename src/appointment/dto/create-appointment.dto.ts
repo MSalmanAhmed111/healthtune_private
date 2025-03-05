@@ -64,4 +64,11 @@ export class CreateAppointmentDto {
   @Trim()
   @IsNotEmpty()
   notes?: string;
+
+  @ApiPropertyOptional({ example: '#ffff', description: 'Color of appointment for front-end' })
+  @IsOptional()
+  @IsString()
+  @Trim()
+  @IsNotEmpty()
+  color?: string;
 }
