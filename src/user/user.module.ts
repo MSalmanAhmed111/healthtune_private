@@ -10,5 +10,6 @@ import { FileStorageModule } from 'src/file-storage/file-storage.module';
   imports: [TypeOrmModule.forFeature([User, FileStorage]), FileStorageModule],
   controllers: [UserController],
   providers: [UserService, ClerkClientProvider],
+  exports: [UserService],
 })
 export class UserModule {}

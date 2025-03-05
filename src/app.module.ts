@@ -18,6 +18,7 @@ import { PatientModule } from './patient/patient.module';
 import { AppointmentModule } from './appointment/appointment.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
 import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AuthModule } from './auth/auth.module';
     UserModule,
     FileStorageModule,
     AuthModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

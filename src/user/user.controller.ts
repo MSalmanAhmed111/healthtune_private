@@ -1,10 +1,11 @@
-import { Controller, Get, Param, HttpCode, HttpStatus, Query, Req, Body, Put } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
-import { PaginationUserQueryDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
-import { ValidateId } from '@pipes/validate-id.pipe';
+import { UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('User')
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -23,25 +24,4 @@ export class UserController {
     return await this.userService.updateCurrentUser(+req.user.id, reqBody);
   }
 
-  // ? ADMIN APIS
-  // @Get('/')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get all user sessions')
-  // async getUsers(@Query() queryParams: PaginationUserQueryDto, @Req() req: Request) {
-  //   return await this.userService.getUsers(queryParams);
-  // }
-
-  // @Get('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get a user session')
-  // async getUser(@Param('id', ValidateId) id: number) {
-  //   return await this.userService.getUser(id);
-  // }
-
-  // @Put('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get current user')
-  // async updateUser(@Req() req: Request, @Body() reqBody: UpdateUserDto) {
-  //   return await this.userService.updateUser(+req.user.id, reqBody);
-  // }
 }
