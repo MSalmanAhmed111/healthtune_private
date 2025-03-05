@@ -20,7 +20,7 @@ export class UserService {
     private readonly fileStorageService: FileStorageService,
   ) {}
 
-  private readonly userFields = ['user.id', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
+  private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
 
   async updateCurrentUser(userId: number, updateCurrentUserDto: UpdateCurrentUserDto): Promise<ApiMessageData> {
     const { firstName, lastName, username, profileImage } = updateCurrentUserDto;
@@ -72,7 +72,7 @@ export class UserService {
         new Brackets((qb) => {
           qb.orWhere('user.firstName ILIKE :query', { query: `%${query}%` })
             .orWhere('user.lastName ILIKE :query', { query: `%${query}%` })
-            .orWhere('user.userName ILIKE :query', { query: `%${query}%` })
+            .orWhere('user.username ILIKE :query', { query: `%${query}%` })
             .orWhere('user.email ILIKE :query', { query: `%${query}%` });
         }),
       );
@@ -80,7 +80,7 @@ export class UserService {
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
 
-    const [items, total] = await qb.select(this.userFields).getManyAndCount();
+    const [items, total] = await qb.select([...this.userFields, 'user.createdAt', 'user.updatedAt']).getManyAndCount();
 
     const lastPage = Math.ceil(total / limit);
 
@@ -105,12 +105,12 @@ export class UserService {
     let fetchedUser = await this.userRepository.createQueryBuilder('user').select(this.userFields).where('user.id = :userId', { userId }).getOne();
     if (!fetchedUser) throw new NotFoundException(userErrorMessages.userNotExists);
 
-    if (banned) {
+    if (banned === true) {
       await this.clerkClient.users.banUser(fetchedUser.clerkUserId).catch((error) => {
         console.error('Error updating Clerk user:', error);
         throw new InternalServerErrorException('Failed to update user in Clerk.');
       });
-    } else if (!banned) {
+    } else if (banned === false) {
       await this.clerkClient.users.unbanUser(fetchedUser.clerkUserId).catch((error) => {
         console.error('Error updating Clerk user:', error);
         throw new InternalServerErrorException('Failed to update user in Clerk.');
