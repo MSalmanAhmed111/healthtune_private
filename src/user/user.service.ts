@@ -72,7 +72,7 @@ export class UserService {
         new Brackets((qb) => {
           qb.orWhere('user.firstName ILIKE :query', { query: `%${query}%` })
             .orWhere('user.lastName ILIKE :query', { query: `%${query}%` })
-            .orWhere('user.userName ILIKE :query', { query: `%${query}%` })
+            .orWhere('user.username ILIKE :query', { query: `%${query}%` })
             .orWhere('user.email ILIKE :query', { query: `%${query}%` });
         }),
       );
@@ -80,7 +80,7 @@ export class UserService {
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
 
-    const [items, total] = await qb.select(this.userFields).getManyAndCount();
+    const [items, total] = await qb.select([...this.userFields, 'user.createdAt', 'user.updatedAt']).getManyAndCount();
 
     const lastPage = Math.ceil(total / limit);
 
