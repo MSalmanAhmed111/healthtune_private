@@ -42,7 +42,7 @@ export class UserService {
     fetchedUser = await this.userRepository.save(fetchedUser);
     if (fetchedUser.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
-      if (image) fetchedUser.profileImage = { id: image.id, image: image.name };
+      if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
     }
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }
@@ -52,7 +52,7 @@ export class UserService {
     if (!fetchedUser) throw new NotFoundException(userErrorMessages.userNotExists);
     if (fetchedUser.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
-      if (image) fetchedUser.profileImage = { id: image.id, image: image.name };
+      if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
     }
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }
@@ -87,7 +87,7 @@ export class UserService {
     for (const fetchedUser of items) {
       if (fetchedUser.profileImage) {
         const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
-        if (image) fetchedUser.profileImage = { id: image.id, image: image.name };
+        if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
       }
     }
 
@@ -134,7 +134,7 @@ export class UserService {
     fetchedUser = await this.userRepository.save(fetchedUser);
     if (fetchedUser.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
-      if (image) fetchedUser.profileImage = { id: image.id, image: image.name };
+      if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
     }
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }

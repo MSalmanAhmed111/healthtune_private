@@ -1,8 +1,8 @@
 export const dateFormat = 'YYYY-MM-DD';
 
-export interface imageObject {
+export interface fileObject {
   id: number;
-  image: string;
+  fileName: string;
 }
 
 export interface ApiMessage {

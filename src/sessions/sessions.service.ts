@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes } from '@entities';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage } from '@entities';
 import { Between, Brackets, MoreThanOrEqual, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto } from 'src/dto';
-import { SessionErrorMessages, SuccessResponseMessages } from '@messages';
+import { ErrorResponseMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
+import { FileStorageService } from 'src/file-storage/file-storage.service';
 
 @Injectable()
 export class SessionService {
@@ -19,6 +20,9 @@ export class SessionService {
     private readonly transcriptRepository: Repository<Transcript>,
     @InjectRepository(DiagnosisCodes)
     private readonly diagnosisCodestRepository: Repository<DiagnosisCodes>,
+    @InjectRepository(FileStorage)
+    private readonly fileStorageRepository: Repository<FileStorage>,
+    private readonly fileStorageService: FileStorageService,
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
@@ -78,19 +82,32 @@ export class SessionService {
   }
 
   async addTranscriptToSession(sessionId: number, reqBody: AddTranscriptDto): Promise<ApiMessageData> {
-    const { assemblyId, content, duration } = reqBody;
+    const { assemblyId, content, duration, audioFile } = reqBody;
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
     if (transcript) {
       transcript.assemblyId = assemblyId || transcript.assemblyId;
       transcript.content = content || transcript.content;
-    } else transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });
-
+    } else {
+      if (!sessionId || !assemblyId || !content) throw new NotFoundException(SessionErrorMessages.missingTrancriptFields);
+      transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });
+    }
     transcript = await this.transcriptRepository.save(transcript);
     session.status = SessionStatusEnum.COMPLETED;
     session.duration = duration || session.duration;
     session.transcript = transcript;
+
+    if (audioFile && audioFile !== session.audioFile) {
+      const audioExists = this.fileStorageRepository.findOne({ where: { id: audioFile as number } });
+      if (!audioExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
+      if (session.audioFile) {
+        const previousAudioFileExists = this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
+        if (previousAudioFileExists) await this.fileStorageService.deleteFileStorage(session.audioFile as number);
+      }
+      session.audioFile = audioFile;
+    }
+
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
@@ -113,14 +130,23 @@ export class SessionService {
     qb.skip((page - 1) * limit).take(limit);
 
     const [sessions, total] = await qb.getManyAndCount();
-
     const lastPage = Math.ceil(total / limit);
+    for (const session of sessions) {
+      if (session.audioFile) {
+        const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
+        if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
+      }
+    }
     return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
   }
 
   async getUserSession(sessionId: number, userId: number): Promise<ApiMessageData> {
     const session = await this.sessionRepository.findOne({ where: { id: sessionId, userId }, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    if (session.audioFile) {
+      const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
+      if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
+    }
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
@@ -139,33 +165,43 @@ export class SessionService {
     };
   }
 
-  // ADMIN APIS
+  // ? ADMIN APIS
 
-  // async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
-  //   const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
-  //   const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
+  async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
+    const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
+    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
 
-  //   if (query) {
-  //     qb.andWhere(
-  //       new Brackets((qb) => {
-  //         qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
-  //           .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
-  //           .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
-  //       }),
-  //     );
-  //   }
-  //   if (userId) qb.andWhere('session.userId = :userId', { userId: userId });
-  //   qb.skip((page - 1) * limit).take(limit);
+    if (query) {
+      qb.andWhere(
+        new Brackets((qb) => {
+          qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
+        }),
+      );
+    }
+    if (userId) qb.andWhere('session.userId = :userId', { userId: userId });
+    qb.skip((page - 1) * limit).take(limit);
 
-  //   const [sessions, total] = await qb.getManyAndCount();
+    const [sessions, total] = await qb.getManyAndCount();
 
-  //   const lastPage = Math.ceil(total / limit);
-  //   return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
-  // }
+    const lastPage = Math.ceil(total / limit);
+    for (const session of sessions) {
+      if (session.audioFile) {
+        const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
+        if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
+      }
+    }
+    return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
+  }
 
-  // async getSession(sessionId: number): Promise<ApiMessageData> {
-  //   const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes'] });
-  //   if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
-  //   return { message: SuccessResponseMessages.successGeneral, data: session };
-  // }
+  async getSession(sessionId: number): Promise<ApiMessageData> {
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    if (session.audioFile) {
+      const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
+      if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
+    }
+    return { message: SuccessResponseMessages.successGeneral, data: session };
+  }
 }

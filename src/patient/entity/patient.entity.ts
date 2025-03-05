@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { Address, BaseEntity, User } from 'src/entity';
-import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, imageObject } from '@types';
+import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject } from '@types';
 
 export class PatientMedicalDetailsEntity {
   @Column({ type: 'varchar', nullable: true })
@@ -106,7 +106,7 @@ export class Patient extends BaseEntity {
   occupation?: string;
 
   @Column({ type: 'integer', nullable: true, default: null })
-  profileImage?: number | imageObject;
+  profileImage?: number | fileObject;
 
   @Column(() => Address)
   address: Address;
