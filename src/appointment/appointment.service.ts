@@ -18,7 +18,7 @@ export class AppointmentService {
   ) {}
 
   async createAppointment(reqBody: CreateAppointmentDto): Promise<ApiMessageData> {
-    const { patientId, doctorId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes , color} = reqBody;
+    const { patientId, doctorId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes , color, duration} = reqBody;
 
     let patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
@@ -41,13 +41,14 @@ export class AppointmentService {
       isTelemedicine,
       roomNumber,
       notes,
-      color
+      color,
+      duration
     });
     appointment = await this.appointmentRepository.save(appointment);
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
   async updateAppointment(appointmentId: number, reqBody: UpdateAppointmentDto): Promise<ApiMessageData> {
-    const { patientId, doctorId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, status, color } = reqBody;
+    const { patientId, doctorId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, status, color, duration } = reqBody;
 
     const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
@@ -78,6 +79,7 @@ export class AppointmentService {
     appointment.status = status || appointment.status;
     appointment.notes = notes || appointment.notes;
     appointment.color = color || appointment.color;
+    appointment.duration = duration || appointment.duration;
 
     await this.appointmentRepository.save(appointment);
 

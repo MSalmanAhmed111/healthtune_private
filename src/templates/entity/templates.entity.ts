@@ -8,4 +8,7 @@ export class Template extends BaseEntity {
 
   @Column({ type: 'varchar' })
   prompt: string;
+
+  @Column({ type: 'varchar', default: 'en' })
+  language: string;
 }

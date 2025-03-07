@@ -37,6 +37,9 @@ export class Appointment {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   consultationFee: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  duration: number;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   location: string; // Clinic, Online, Home Visit
 

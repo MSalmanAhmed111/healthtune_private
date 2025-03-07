@@ -39,6 +39,13 @@ export class CreateAppointmentDto {
   @Min(0)
   consultationFee?: number;
 
+  @ApiProperty({ example: 120, description: 'Total duration in minutes' })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  @Min(1.00)
+  duration: number;
+
   @ApiPropertyOptional({ example: 'Clinic', description: 'Appointment location (Clinic, Online, Home Visit)' })
   @IsOptional()
   @IsString()

@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete, Req } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
 import { CreateTemplateDto, PaginationQueryDto, UpdateTemplateDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
+import { Request } from 'express';
 
 @ApiTags('Templates')
 @Controller('template')
@@ -14,22 +15,22 @@ export class TemplatesController {
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new template')
-  async createTemplate(@Body() reqBody: CreateTemplateDto): Promise<ApiMessageData> {
-    return await this.templatesService.createTemplate(reqBody);
+  async createTemplate(@Body() reqBody: CreateTemplateDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.templatesService.createTemplate(reqBody, req.headers['accept-language']);
   }
 
   @Put('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update template')
-  async updateTemplate(@Param('id', ValidateId) templateId: number, @Body() reqBody: UpdateTemplateDto) {
-    return await this.templatesService.updateTemplate(templateId, reqBody);
+  async updateTemplate(@Param('id', ValidateId) templateId: number, @Body() reqBody: UpdateTemplateDto, @Req() req: Request) {
+    return await this.templatesService.updateTemplate(templateId, reqBody, req.headers['accept-language']);
   }
 
   @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all templates')
-  async getTemplates(@Query() queryParams: PaginationQueryDto) {
-    return await this.templatesService.getTemplates(queryParams);
+  async getTemplates(@Query() queryParams: PaginationQueryDto, @Req() req: Request) {
+    return await this.templatesService.getTemplates(queryParams, req.headers['accept-language']);
   }
 
   @Get('/:id')

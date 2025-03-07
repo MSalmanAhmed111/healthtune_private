@@ -13,16 +13,16 @@ export class TemplatesService {
     private readonly templateRepository: Repository<Template>,
   ) {}
 
-  async createTemplate(reqBody: CreateTemplateDto): Promise<ApiMessageData> {
+  async createTemplate(reqBody: CreateTemplateDto, language: string): Promise<ApiMessageData> {
     const { title, prompt } = reqBody;
     let template = await this.templateRepository.findOne({ where: { title } });
     if (template) throw new BadRequestException(TemplateErrorMessages.templateAlreadyExists);
-    template = this.templateRepository.create({ title, prompt });
+    template = this.templateRepository.create({ title, prompt, language });
     await this.templateRepository.save(template);
     return { message: SuccessResponseMessages.successGeneral, data: template };
   }
 
-  async updateTemplate(templateId: number, reqBody: UpdateTemplateDto): Promise<ApiMessageData> {
+  async updateTemplate(templateId: number, reqBody: UpdateTemplateDto, language: string): Promise<ApiMessageData> {
     const { title, prompt } = reqBody;
     const template = await this.templateRepository.findOne({ where: { id: templateId } });
     if (!template) throw new NotFoundException(TemplateErrorMessages.templateNotExists);
@@ -32,11 +32,12 @@ export class TemplatesService {
     }
     template.title = title || template.title;
     template.prompt = prompt || template.prompt;
+    template.prompt = language || template.language;
     await this.templateRepository.save(template);
     return { message: SuccessResponseMessages.successGeneral, data: template };
   }
 
-  async getTemplates(getTemplatesDto: PaginationQueryDto): Promise<ApiMessageDataPagination> {
+  async getTemplates(getTemplatesDto: PaginationQueryDto, language: string): Promise<ApiMessageDataPagination> {
     const { query, page, limit } = getTemplatesDto;
     const qb = this.templateRepository.createQueryBuilder('template');
     if (query) {
@@ -46,6 +47,7 @@ export class TemplatesService {
         }),
       );
     }
+    qb.andWhere('template.language = :language', { language });
     qb.skip((page - 1) * limit).take(limit);
     const [templates, total] = await qb.getManyAndCount();
     const lastPage = Math.ceil(total / limit);
