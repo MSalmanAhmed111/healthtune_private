@@ -9,7 +9,7 @@ export class TemplateSeeder {
       Create = 'Create',
     }
 
-    const action: ActionType = ActionType.Update;
+    const action: ActionType = ActionType.Create;
 
     const dataSource = new DataSource(dataSourceOptions as DataSourceOptions);
     await dataSource.initialize();
@@ -157,7 +157,6 @@ export class TemplateSeeder {
       console.log('Invalid action. Choose either "Create" or "Update".');
     }
 
-    await templateRepository.save(templates);
     console.log('Templates seeded successfully.');
   }
 }
