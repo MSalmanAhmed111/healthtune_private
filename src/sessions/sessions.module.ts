@@ -9,5 +9,6 @@ import { FileStorageModule } from 'src/file-storage/file-storage.module';
   imports: [TypeOrmModule.forFeature([Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage]), FileStorageModule],
   controllers: [SessionController],
   providers: [SessionService],
+  exports: [SessionService],
 })
 export class SessionsModule {}

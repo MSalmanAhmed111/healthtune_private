@@ -16,7 +16,7 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get session stats')
   async getSessionStats(@Query() queryParams: GetSessionStatsDto) {
-    return await this.sessionService.getSessionStats(queryParams);
+    return await this.sessionService.getSessionStats(queryParams, queryParams.userId);
   }
 
   @Post('/')
@@ -58,28 +58,13 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user sessions')
   async getUserSessions(@Query() queryParams: PaginationUserQueryDto, @Req() req: Request) {
-    return await this.sessionService.getUserSessions(queryParams, +req.user.id);
+    return await this.sessionService.getSessions(queryParams, +req.user.id);
   }
 
   @Get('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
   async getUserSession(@Param('id', ValidateId) sessionId: number, @Req() req: Request) {
-    return await this.sessionService.getUserSession(sessionId, +req.user.id);
+    return await this.sessionService.getSession(sessionId, +req.user.id);
   }
-
-  // ? ADMIN APIS
-  // @Get('/')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get all sessions')
-  // async getSessions(@Query() queryParams: PaginationUserQueryDto) {
-  //   return await this.sessionService.getSessions(queryParams);
-  // }
-
-  // @Get('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get a session by ID')
-  // async getSession(@Param('id', ValidateId) sessionId: number) {
-  //   return await this.sessionService.getSession(sessionId);
-  // }
 }

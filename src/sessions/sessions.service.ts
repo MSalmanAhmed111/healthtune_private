@@ -113,7 +113,7 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
 
-  async getUserSessions(getSessionsDto: PaginationUserQueryDto, userId: number): Promise<ApiMessageDataPagination> {
+  async getSessions(getSessionsDto: PaginationUserQueryDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
     const { query, page, limit, sort = 'DESC' } = getSessionsDto;
     const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
 
@@ -126,7 +126,7 @@ export class SessionService {
         }),
       );
     }
-    qb.andWhere('session.userId = :userId', { userId });
+    if (userId) qb.andWhere('session.userId = :userId', { userId });
     qb.skip((page - 1) * limit).take(limit);
 
     const [sessions, total] = await qb.getManyAndCount();
@@ -140,8 +140,9 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
   }
 
-  async getUserSession(sessionId: number, userId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId, userId }, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
+  async getSession(sessionId: number, userId: number = undefined): Promise<ApiMessageData> {
+    const where = userId !== undefined ? { id: sessionId, userId } : { id: sessionId };
+    const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     if (session.audioFile) {
       const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
@@ -150,58 +151,24 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
-  async getSessionStats(reqQueryParams: GetSessionStatsDto): Promise<ApiMessageData> {
-    let { startDate, endDate, userId } = reqQueryParams;
+  async getSessionStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
+    let { startDate, endDate } = reqQueryParams;
     startDate = startDate ? new Date(startDate) : new Date('2020-01-01T00:00:00.000Z');
     endDate = endDate ? new Date(endDate) : new Date();
-    const sessionCount = await this.sessionRepository.count({ where: { userId, createdAt: Between(startDate, endDate) } });
+
+    let where: any = userId ? { userId, createdAt: Between(startDate, endDate) } : { createdAt: Between(startDate, endDate) };
+    const sessionCount = await this.sessionRepository.count({ where });
+
+    where = userId ? { userId, updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED } : { updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED };
     const sessionCompletedCount = await this.sessionRepository.count({
       where: { userId, updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED },
     });
+
+    where = userId ? { userId, createdAt: Between(startDate, endDate) } : { createdAt: Between(startDate, endDate) };
     const sessionDurationAvg = await this.sessionRepository.average('duration', { userId, createdAt: Between(startDate, endDate) });
     return {
       message: SuccessResponseMessages.successGeneral,
       data: { sessionCount, sessionCompletedCount, sessionDurationAvg },
     };
-  }
-
-  // ? ADMIN APIS
-
-  async getSessions(getSessionsDto: PaginationUserQueryDto): Promise<ApiMessageDataPagination> {
-    const { query, userId, page, limit, sort = 'DESC' } = getSessionsDto;
-    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
-
-    if (query) {
-      qb.andWhere(
-        new Brackets((qb) => {
-          qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
-        }),
-      );
-    }
-    if (userId) qb.andWhere('session.userId = :userId', { userId: userId });
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [sessions, total] = await qb.getManyAndCount();
-
-    const lastPage = Math.ceil(total / limit);
-    for (const session of sessions) {
-      if (session.audioFile) {
-        const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
-        if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
-      }
-    }
-    return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
-  }
-
-  async getSession(sessionId: number): Promise<ApiMessageData> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId }, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
-    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
-    if (session.audioFile) {
-      const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
-      if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
-    }
-    return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 }

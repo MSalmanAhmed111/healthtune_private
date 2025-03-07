@@ -144,7 +144,7 @@ export class TemplateSeeder {
         console.log('Medical note templates already exist.');
         return;
       } else await templateRepository.save(templates);
-    } else if (action === 'Update') {
+    } else if ((action as ActionType) === 'Update') {
       for (const template of templates) {
         const existingTemplates = await templateRepository.findOne({ where: { title: template.title } });
         if (existingTemplates) {

@@ -12,6 +12,7 @@ export class CreateAppointmentDto {
   patientId: number;
 
   @ApiProperty({ example: '456', description: 'ID of the doctor' })
+  @IsOptional()
   @IsNotEmpty()
   @Type(() => Number)
   @IsInt()

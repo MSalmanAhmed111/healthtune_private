@@ -15,58 +15,35 @@ export class AppointmentController {
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new appointment')
-  async createAppointment(@Body() reqBody: CreateAppointmentDto): Promise<ApiMessageData> {
-    return await this.appointmentService.createAppointment(reqBody);
+  async createUserAppointment(@Body() reqBody: CreateAppointmentDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.appointmentService.createAppointment(reqBody, +req.user.id);
   }
 
   @Put('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update appointment')
-  async updateAppointment(@Param('id', ValidateId) appointmentId: number, @Body() reqBody: UpdateAppointmentDto) {
-    return await this.appointmentService.updateAppointment(appointmentId, reqBody);
+  async updateAppointment(@Param('id', ValidateId) appointmentId: number, @Body() reqBody: UpdateAppointmentDto, @Req() req: Request) {
+    return await this.appointmentService.updateAppointment(appointmentId, reqBody, +req.user.id);
   }
 
   @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user appointment')
   async getUserAppointments(@Query() queryParams: GetAppointmentsDto, @Req() req: Request) {
-    return await this.appointmentService.getUserAppointments(queryParams, +req.user.id);
+    return await this.appointmentService.getAppointments(queryParams, +req.user.id);
   }
 
   @Get('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get user appointment by ID')
   async getUserAppointment(@Param('id', ValidateId) appointmentId: number, @Req() reqBody: Request) {
-    return await this.appointmentService.getUserAppointment(appointmentId, +reqBody.user.id);
+    return await this.appointmentService.getAppointment(appointmentId, +reqBody.user.id);
   }
 
   @Delete('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete user appointment by ID')
   async deleteUserAppointment(@Param('id', ValidateId) appointmentId: number, @Req() req: Request) {
-    return await this.appointmentService.deleteUserAppointment(appointmentId, +req.user.id);
+    return await this.appointmentService.deleteAppointment(appointmentId, +req.user.id);
   }
-
-  // ADMIN APIS
-
-  // @Get('/')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get all appointment')
-  // async getAppointments(@Query() queryParams: GetAppointmentsDto) {
-  //   return await this.appointmentService.getAppointments(queryParams);
-  // }
-
-  // @Get('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get a appointment by ID')
-  // async getAppointment(@Param('id', ValidateId) appointmentId: number) {
-  //   return await this.appointmentService.getAppointment(appointmentId);
-  // }
-
-  // @Delete('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Delete a appointment by ID')
-  // async deleteAppointment(@Param('id', ValidateId) appointmentId: number) {
-  //   return await this.appointmentService.deleteAppointment(appointmentId);
-  // }
 }

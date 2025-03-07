@@ -57,7 +57,7 @@ export class UserService {
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }
 
-  // ? ADMIN APIS
+  // ? SEPERATE ADMIN APIS
 
   async getUsers(getUsersDto: GetUsersDto): Promise<ApiMessageDataPagination> {
     const { query, banned = false, page, limit } = getUsersDto;
