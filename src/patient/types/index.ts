@@ -1,18 +1,18 @@
 export enum BloodTypeEnum {
-  APositive = 'A+',
-  ANegative = 'A-',
-  BPositive = 'B+',
-  BNegative = 'B-',
-  OPositive = 'O+',
-  ONegative = 'O-',
-  ABPositive = 'AB+',
-  ABNegative = 'AB-',
+  APOSITIVE = 'A+',
+  ANEGATIVE = 'A-',
+  BPOSITIVE = 'B+',
+  BNEGATIVE = 'B-',
+  OPOSITIVE = 'O+',
+  ONEGATIVE = 'O-',
+  ABPOSITIVE = 'AB+',
+  ABNEGATIVE = 'AB-',
 }
 
 export enum MaritalStatusEnum {
-  Single = 'Single',
-  Married = 'Married',
-  Divorced = 'Divorced',
-  Widowed = 'Widowed',
-  Separated = 'Separated',
+  SINGLE = 'Single',
+  MARRIED = 'Married',
+  DIVORCED = 'Divorced',
+  WIDOWED = 'Widowed',
+  SEPERATED = 'Separated',
 }

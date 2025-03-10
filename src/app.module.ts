@@ -39,6 +39,7 @@ import { AdminModule } from './admin/admin.module';
     FileStorageModule,
     AuthModule,
     AdminModule,
+    //PlanModule,
   ],
   controllers: [AppController],
   providers: [
