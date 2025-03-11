@@ -32,7 +32,7 @@ export class TemplatesService {
     }
     template.title = title || template.title;
     template.prompt = prompt || template.prompt;
-    template.prompt = language || template.language;
+    template.language = language || template.language;
     await this.templateRepository.save(template);
     return { message: SuccessResponseMessages.successGeneral, data: template };
   }
