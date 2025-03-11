@@ -6,7 +6,7 @@ import { AddressDto } from '@dtos';
 import { Type } from 'class-transformer';
 
 export class PatientMedicalInfo {
-  @ApiPropertyOptional({ description: 'Blood Type', enum: BloodTypeEnum, example: BloodTypeEnum.OPositive })
+  @ApiPropertyOptional({ description: 'Blood Type', enum: BloodTypeEnum, example: BloodTypeEnum.OPOSITIVE })
   @IsOptional()
   @IsEnum(BloodTypeEnum)
   bloodType?: BloodTypeEnum;
@@ -183,7 +183,7 @@ export class CreatePatientDto {
   @IsEnum(GenderEnum)
   gender?: GenderEnum;
 
-  @ApiPropertyOptional({ description: 'Marital Status', enum: MaritalStatusEnum, example: MaritalStatusEnum.Single })
+  @ApiPropertyOptional({ description: 'Marital Status', enum: MaritalStatusEnum, example: MaritalStatusEnum.SINGLE })
   @IsOptional()
   @IsEnum(MaritalStatusEnum)
   maritalStatus?: MaritalStatusEnum;

@@ -1,5 +1,5 @@
-export const SessionErrorMessages = {
-  sessionAlreadyExists: 'Session already exists.',
-  sessionNotExists: 'Session does not exist.',
-  missingTrancriptFields: 'assemblyId and content fields are required for trancript creation',
+export const PlanErrorMessages = {
+  planAlreadyExists: 'Plan already exists.',
+  planNotExists: 'Plan does not exist.',
+  planNameAlreadyExists: 'Plan name already exists.',
 };

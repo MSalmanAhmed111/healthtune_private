@@ -1,17 +1,11 @@
-export enum NoteFormatEnum {
-  SOAP = 'Soap',
-  CHIEF_COMPLAINT = 'Chief Complaint',
-  MULTIPLE_COMPLAINTS = 'Multiple Complaints',
+export enum PlanTypeEnum {
+  MONTHLY = 'Monthly',
+  YEARLY = 'Yearly',
 }
 
-export enum SessionTypeEnum {
-  IN_PERSON = 'In Person',
-  TELEHEALTH = 'Telehealth',
-  PHONE = 'Phone',
-}
-
-export enum SessionStatusEnum {
-  PROCESS = 'Process',
-  COMPLETED = 'Completed',
-  CANCELLED = 'Cancelled',
+export enum FeatureLimitTypeEnum {
+  DAILY = 'Daily',
+  WEEKLY = 'Weekly',
+  MONTHLY = 'Monthly',
+  YEARLY = 'Yearly',
 }

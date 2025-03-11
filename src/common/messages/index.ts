@@ -8,3 +8,4 @@ export * from 'src/setting/messages';
 export * from 'src/patient/messages';
 export * from 'src/appointment/messages';
 export * from 'src/file-storage/messages';
+export * from 'src/plan/messages';

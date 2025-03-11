@@ -7,7 +7,7 @@ import { CreatePlanDto, UpdatePlanDto } from 'src/dto';
 import { PlanErrorMessages, SuccessResponseMessages } from '@messages';
 
 @Injectable()
-export class PlansService {
+export class PlanService {
   constructor(
     @InjectRepository(Plan) private readonly planRepository: Repository<Plan>,
     @InjectRepository(PlanFeature) private readonly featureRepository: Repository<PlanFeature>,

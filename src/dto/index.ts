@@ -9,3 +9,4 @@ export * from 'src/user/dto';
 export * from 'src/patient/dto';
 export * from 'src/appointment/dto';
 export * from 'src/file-storage/dto';
+export * from "src/plan/dto";
