@@ -1,5 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
-import { Address, BaseEntity, User } from 'src/entity';
+import { Entity, Column, OneToMany } from 'typeorm';
+import { Address, BaseEntity, Session } from 'src/entity';
 import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject } from '@types';
 
 export class PatientMedicalDetailsEntity {
@@ -122,6 +122,9 @@ export class Patient extends BaseEntity {
 
   @Column(() => PatientAdmissionDetailsEntity)
   admissionDetails: PatientAdmissionDetailsEntity;
+
+  @OneToMany(() => Session, (session) => session.patient, { cascade: true })
+  sessions: Session[];
 
   // @ManyToOne(() => User, (user) => user.patients, { nullable: true })
   // @JoinColumn({ name: 'userId' })

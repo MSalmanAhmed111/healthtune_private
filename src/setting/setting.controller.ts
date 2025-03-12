@@ -14,6 +14,13 @@ export class SettingController {
     return await this.settingService.getLanguages();
   }
 
+  @Get('/')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get Settings')
+  async getSettings() {
+    return await this.settingService.getSettings();
+  }
+
   @Put('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update Settings')
