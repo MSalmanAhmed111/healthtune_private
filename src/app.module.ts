@@ -24,7 +24,7 @@ import { AdminModule } from './admin/admin.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `.env.development`,
+      envFilePath: `.env.${process.env.ENVIRONMENT || 'development'}`,
       load: [configuration],
     }),
     TypeOrmModule.forRoot(dataSourceOptions),

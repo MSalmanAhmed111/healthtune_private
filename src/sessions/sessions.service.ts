@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage } from '@entities';
-import { Between, Brackets, MoreThanOrEqual, Repository } from 'typeorm';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting } from '@entities';
+import { Between, Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto } from 'src/dto';
-import { ErrorResponseMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
+import { ErrorResponseMessages, PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 
 @Injectable()
@@ -20,14 +20,43 @@ export class SessionService {
     private readonly transcriptRepository: Repository<Transcript>,
     @InjectRepository(DiagnosisCodes)
     private readonly diagnosisCodestRepository: Repository<DiagnosisCodes>,
+    @InjectRepository(Patient)
+    private readonly patientRepository: Repository<Patient>,
+    @InjectRepository(Setting)
+    private readonly settingRepository: Repository<Setting>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
-    const { patientName, sex, sessionType, noteFormat, language } = reqBody;
-    const session = this.sessionRepository.create({ patientName, sex, sessionType, noteFormat, language, userId });
+    const { patientFirstName, patientLastName, sessionType, noteFormat, language } = reqBody;
+    let { patientId, sex } = reqBody;
+    let patientName = null;
+
+    const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records' } });
+    if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
+
+    if (patientId) {
+      const patient = await this.patientRepository.findOne({ where: { id: patientId } });
+      if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+      patientName = patient.firstName + '' + patient.lastName;
+      sex = patient.gender;
+    } else if (patientFirstName && patientLastName) {
+      if (patientRecordSettings.value) {
+        let mreCount = '0';
+        let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
+        if (patient) mreCount = patient.id.toString();
+        const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
+        let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex });
+        createdPatient = await this.patientRepository.save(createdPatient);
+        patientId = createdPatient.id;
+        patientName = createdPatient.firstName + ' ' + createdPatient.lastName
+      } else patientName = patientFirstName + ' ' + patientLastName;
+    } else {
+      throw new NotFoundException(SessionErrorMessages.patientIdOrNameRequired);
+    }
+    const session = this.sessionRepository.create({ patientId, patientName, sex, sessionType, noteFormat, language, userId });
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };
@@ -142,7 +171,7 @@ export class SessionService {
 
   async getSession(sessionId: number, userId: number = undefined): Promise<ApiMessageData> {
     const where = userId !== undefined ? { id: sessionId, userId } : { id: sessionId };
-    const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes'] });
+    const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     if (session.audioFile) {
       const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });

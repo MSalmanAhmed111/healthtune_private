@@ -1,5 +1,5 @@
 import { Entity, Column, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity, DiagnosisCodes, DoctorNotes, Note, Transcript, User } from 'src/entity';
+import { BaseEntity, DiagnosisCodes, DoctorNotes, Note, Patient, Transcript, User } from 'src/entity';
 import { fileObject, GenderEnum, SessionStatusEnum } from '@types';
 
 @Entity({ name: 'sessions' })
@@ -50,4 +50,11 @@ export class Session extends BaseEntity {
   @ManyToOne(() => User, (user) => user.sessions)
   @JoinColumn({ name: 'userId' })
   user: User;
+
+  @Column({ type: 'integer', default: null })
+  patientId: number;
+
+  @ManyToOne(() => Patient, (patient) => patient.sessions, { nullable: true})
+  @JoinColumn({ name: 'patientId' })
+  patient: Patient;
 }

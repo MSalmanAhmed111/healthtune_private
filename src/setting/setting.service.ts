@@ -13,6 +13,12 @@ export class SettingService {
     @InjectRepository(Setting)
     private readonly settingRepository: Repository<Setting>,
   ) {}
+
+  async getSettings(): Promise<ApiMessageData> {
+    const fetchedSetting = await this.settingRepository.find()
+    return { message: SuccessResponseMessages.successGeneral, data: fetchedSetting };
+  }
+
   async updateSetting(updateSettingsDto: UpdateSettingsDto): Promise<ApiMessageData> {
     const { settings } = updateSettingsDto;
     const settingsToBeUpdated = [];

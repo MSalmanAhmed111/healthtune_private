@@ -9,11 +9,19 @@ export class SettingSeeder {
     await dataSource.initialize();
     const accountSettingRepository: Repository<Setting> = dataSource.getRepository(Setting);
 
+    const action: string = 'update';
+
     const settings = [
       {
         type: 'General',
         name: 'Language',
         value: 'English',
+        context: 'app/web',
+      },
+      {
+        type: 'General',
+        name: 'Enable patient records',
+        value: false,
         context: 'app/web',
       },
     ];
@@ -24,13 +32,18 @@ export class SettingSeeder {
       });
 
       if (existingSetting) {
-        existingSetting.value = setting.value;
-        existingSetting.type = setting.type;
-        existingSetting.context = setting.context;
-        await accountSettingRepository.save(existingSetting);
+        if (action === 'update') {
+          existingSetting.value = setting.value;
+          existingSetting.type = setting.type;
+          existingSetting.context = setting.context;
+          await accountSettingRepository.save(existingSetting);
+        } else {
+          continue;
+        }
       } else {
         await accountSettingRepository.save(setting);
       }
     }
+    console.log('Settings seeded successfully');
   }
 }
