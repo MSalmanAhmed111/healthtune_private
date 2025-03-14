@@ -1,4 +1,4 @@
-import { ModuleEnum } from "@types";
+import { BaseFeatureProperties, ModuleEnum } from "@types";
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
 @Entity('plan_features')
@@ -13,5 +13,5 @@ export class PlanFeature {
   module: ModuleEnum;
 
   @Column({ type: 'jsonb', nullable: true })
-  defaultProperties: Record<string, any>;
+  defaultProperties: BaseFeatureProperties;
 }

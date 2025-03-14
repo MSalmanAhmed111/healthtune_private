@@ -1,16 +1,9 @@
 import { Trim } from '@decorators';
+import { PaginationQueryDto } from '@dtos';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsInt, Min, IsNotEmpty } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
-export class GetPatientsDto {
-  @ApiPropertyOptional({ description: 'Search query for patient name or content' })
-  @IsOptional()
-  @IsString()
-  @Trim()
-  @IsNotEmpty()
-  query?: string;
-
+export class GetPatientsDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Filter by gender' })
   @IsOptional()
   @IsString()
@@ -31,18 +24,4 @@ export class GetPatientsDto {
   @Trim()
   @IsNotEmpty()
   nationality?: string;
-
-  @ApiPropertyOptional({ description: 'Page number for pagination', default: 1, minimum: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number = 1;
-
-  @ApiPropertyOptional({ description: 'Number of items per page', default: 10, minimum: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  limit?: number = 10;
 }

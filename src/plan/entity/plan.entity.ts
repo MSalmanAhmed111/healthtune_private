@@ -10,11 +10,11 @@ export class Plan {
   @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true, default: null })
   description: string;
 
   @Column({ type: 'varchar' })
-  price: number;
+  price: string;
 
   @Column({ type: 'varchar' })
   planType: PlanTypeEnum;

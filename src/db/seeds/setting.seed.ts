@@ -21,7 +21,7 @@ export class SettingSeeder {
       {
         type: 'General',
         name: 'Enable patient records',
-        value: false,
+        value: true,
         context: 'app/web',
       },
     ];

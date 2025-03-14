@@ -133,7 +133,7 @@ export class PatientService {
   }
 
   async getPatients(getPatientDto: GetPatientsDto): Promise<ApiMessageDataPagination> {
-    const { query, page = 1, limit = 10, gender, maritalStatus, nationality } = getPatientDto;
+    const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC' } = getPatientDto;
 
     const qb = this.patientRepository.createQueryBuilder('patient');
 
@@ -154,7 +154,7 @@ export class PatientService {
 
     qb.skip((page - 1) * limit).take(limit);
 
-    const [patients, total] = await qb.getManyAndCount();
+    const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
     const lastPage = Math.ceil(total / limit);
 
     for (const patient of patients) {

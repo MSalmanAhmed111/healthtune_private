@@ -19,6 +19,7 @@ import { AppointmentModule } from './appointment/appointment.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
+import { PlanModule } from './plan/plan.module';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { AdminModule } from './admin/admin.module';
     FileStorageModule,
     AuthModule,
     AdminModule,
-    //PlanModule,
+    PlanModule,
   ],
   controllers: [AppController],
   providers: [

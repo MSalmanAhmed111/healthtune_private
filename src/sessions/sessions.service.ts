@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 
@@ -51,7 +51,7 @@ export class SessionService {
         let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex });
         createdPatient = await this.patientRepository.save(createdPatient);
         patientId = createdPatient.id;
-        patientName = createdPatient.firstName + ' ' + createdPatient.lastName
+        patientName = createdPatient.firstName + ' ' + createdPatient.lastName;
       } else patientName = patientFirstName + ' ' + patientLastName;
     } else {
       throw new NotFoundException(SessionErrorMessages.patientIdOrNameRequired);
@@ -142,25 +142,31 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
 
-  async getSessions(getSessionsDto: PaginationUserQueryDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
-    const { query, page, limit, sort = 'DESC' } = getSessionsDto;
-    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').orderBy('session.createdAt', sort);
+  async getSessions(getSessionsDto: GetSessionsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
+    const { query, page, limit, sort = 'DESC', patientId } = getSessionsDto;
+    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').leftJoinAndSelect('session.patient', 'patient').orderBy('session.createdAt', sort);
 
     if (query) {
       qb.andWhere(
         new Brackets((qb) => {
           qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
             .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` });
+            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(patient.mreNumber, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(patient.firstName, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(patient.lastName, '')) LIKE LOWER(:query)`, { query: `%${query}%` });
         }),
       );
     }
     if (userId) qb.andWhere('session.userId = :userId', { userId });
+    if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
+
     qb.skip((page - 1) * limit).take(limit);
 
     const [sessions, total] = await qb.getManyAndCount();
     const lastPage = Math.ceil(total / limit);
     for (const session of sessions) {
+      session.patient = undefined;
       if (session.audioFile) {
         const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
         if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };

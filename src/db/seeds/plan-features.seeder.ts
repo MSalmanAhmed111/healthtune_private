@@ -1,7 +1,7 @@
 import { DataSource, DataSourceOptions, Repository } from 'typeorm';
 import { PlanFeature } from '@entities';
 import { dataSourceOptions } from '../db-config';
-import { ModuleEnum } from '@types';
+import { ModuleEnum, PlanFeatureNameEnum } from '@types';
 
 export class PlanFeatureSeeder {
   async run(): Promise<void> {
@@ -18,29 +18,29 @@ export class PlanFeatureSeeder {
 
     const planFeatures = [
       {
-        name: 'Session Creation',
+        name: PlanFeatureNameEnum.SESSION_CREATION,
         module: ModuleEnum.Session,
         defaultProperties: { isUnlimited: false, limit: 100, limitType: 'Monthly' },
       },
       {
-        name: 'Doctor Onboarding',
+        name: PlanFeatureNameEnum.DOCTOR_ONBOARDING,
         module: ModuleEnum.User,
-        defaultProperties: { isEnabled: true, isUnlimited: true, limit: null, limitType: null },
+        defaultProperties: { isUnlimited: true, limit: null, limitType: null },
       },
       {
-        name: 'Template Customization',
+        name: PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION,
         module: ModuleEnum.Templates,
-        defaultProperties: { isEnabled: true, isUnlimited: true, limit: null, limitType: null },
+        defaultProperties: {} as Record<string, any>,
       },
       {
-        name: 'Document Generation',
+        name: PlanFeatureNameEnum.DOCUMENT_GENERATION,
         module: ModuleEnum.Session,
-        defaultProperties: { isEnabled: true, isUnlimited: true, limit: null, limitType: null },
+        defaultProperties: { isUnlimited: false, limit: 200, limitType: 'Monthly' },
       },
       {
-        name: 'Macros & Replace',
+        name: PlanFeatureNameEnum.MACRO_REPLACEMENT,
         module: ModuleEnum.Macros,
-        defaultProperties: { isEnabled: true, isUnlimited: true, limit: null, limitType: true },
+        defaultProperties: {} as Record<string, any>,
       },
     ];
 
@@ -59,9 +59,9 @@ export class PlanFeatureSeeder {
       if (existingFeatures.length > 0) {
         console.log('Features already seeded.');
         return;
-      } else await planFeatureRepository.save(features);
+      } else await planFeatureRepository.save(existingFeatures);
     } else if ((action as ActionType) === 'Update') {
-      for (const feature of features) {
+      for (const feature of planFeatures) {
         const existingFeatures = await planFeatureRepository.findOne({ where: { name: feature.name } });
         if (existingFeatures) {
           existingFeatures.module = feature.module;

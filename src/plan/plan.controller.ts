@@ -5,6 +5,7 @@ import { ApiMessageData } from '@types';
 import { CreatePlanDto, PaginationQueryDto, UpdatePlanDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Plan')
 @Controller('plan')
@@ -25,19 +26,21 @@ export class PlanController {
     return await this.planService.updatePlan(planId, reqBody);
   }
 
-  // @Get('/')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get all plan')
-  // async getPlan(@Query() queryParams: PaginationQueryDto) {
-  //   return await this.planService.getPlan(queryParams);
-  // }
+  @Get('/')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all plans')
+  async getPlans(@Query() queryParams: PaginationQueryDto) {
+    return await this.planService.getPlans(queryParams);
+  }
 
-  // @Get('/:id')
-  // @HttpCode(HttpStatus.OK)
-  // @SwaggerApiResponse('Get a plan by ID')
-  // async getPlan(@Param('id', ValidateId) planId: number) {
-  //   return await this.planService.getPlan(planId);
-  // }
+  @Get('/:id')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get a plan by ID')
+  async getPlan(@Param('id', ValidateId) planId: number) {
+    return await this.planService.getPlan(planId);
+  }
 
   // @Delete('/:id')
   // @HttpCode(HttpStatus.OK)

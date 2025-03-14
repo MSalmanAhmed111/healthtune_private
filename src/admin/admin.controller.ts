@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SwaggerApiResponse } from '@decorators';
-import { CreateAppointmentDto, GetAppointmentsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto } from '@dtos';
+import { CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { UserService } from 'src/user/user.service';
 import { ApiTags } from '@nestjs/swagger';
@@ -97,7 +97,7 @@ export class AdminController {
   @Get('/session')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all sessions')
-  async getSessions(@Query() queryParams: PaginationUserQueryDto) {
+  async getSessions(@Query() queryParams: GetSessionsDto) {
     return await this.sessionService.getSessions(queryParams);
   }
 
