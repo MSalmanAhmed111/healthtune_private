@@ -1,6 +1,6 @@
-import { Session } from '@entities';
+import { Session, UserPlan } from '@entities';
 import { fileObject } from '@types';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 
 @Entity('users')
 export class User {
@@ -57,4 +57,11 @@ export class User {
 
   @OneToMany(() => Session, (session) => session.user, { cascade: true, onDelete: 'CASCADE' })
   sessions: Session[];
+
+  @OneToOne(() => UserPlan, { nullable: true })
+  @JoinColumn({ name: 'userPlanId' })
+  userPlan: UserPlan;
+
+  @Column({ type: 'integer' })
+  userPlanId: number;
 }

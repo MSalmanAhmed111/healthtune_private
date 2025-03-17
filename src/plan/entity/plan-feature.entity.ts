@@ -1,5 +1,6 @@
-import { BaseFeatureProperties, ModuleEnum } from "@types";
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { PlanFeatureProperty } from '@entities';
+import { BaseFeatureProperties, ModuleEnum } from '@types';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity('plan_features')
 export class PlanFeature {
@@ -14,4 +15,7 @@ export class PlanFeature {
 
   @Column({ type: 'jsonb', nullable: true })
   defaultProperties: BaseFeatureProperties;
+
+  @OneToMany(() => PlanFeatureProperty, (featureProperty) => featureProperty.feature)
+  featureProperties: PlanFeatureProperty[];
 }

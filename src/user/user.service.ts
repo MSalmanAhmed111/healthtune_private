@@ -1,6 +1,6 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { FileStorage, User } from '@entities';
-import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages } from '@messages';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { FileStorage, Plan, User, UserPlan, UserPlanUsage } from '@entities';
+import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData } from '@types';
 import { Repository, Brackets } from 'typeorm';
@@ -13,6 +13,12 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Plan)
+    private readonly planRepository: Repository<Plan>,
+    @InjectRepository(UserPlan)
+    private readonly userPlanRepository: Repository<UserPlan>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     @Inject('ClerkClient')
@@ -21,6 +27,50 @@ export class UserService {
   ) {}
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
+
+  async selectPlanForUser(userId: number, planId: number): Promise<ApiMessageData> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException(userErrorMessages.userNotExists);
+
+    const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
+    if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
+
+    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
+
+    if (userPlan) {
+      if(userPlan.isSubscriptionActive) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name} plan.`); 
+      userPlan.plan = plan;
+      userPlan.startDate = new Date();
+      userPlan.isSubscriptionActive = true;
+    } else {
+      userPlan = this.userPlanRepository.create({
+        user,
+        plan,
+        startDate: new Date(),
+        isSubscriptionActive: true,
+        usage: [],
+      });
+    }
+
+    userPlan.usage = userPlan.usage || [];
+
+    for (const feature of plan.features) {
+      if (!feature?.properties?.isUnlimited) continue;
+
+      const newUsage = this.userPlanUsageRepository.create({
+        userPlan,
+        planFeatureProperty: feature,
+        planFeaturePropertyId: feature.id,
+        usageCount: feature.properties.limit || null,
+      });
+
+      userPlan.usage.push(newUsage);
+    }
+
+    await this.userPlanRepository.save(userPlan);
+
+    return { message: SuccessResponseMessages.successGeneral, data: userPlan };
+  }
 
   async updateCurrentUser(userId: number, updateCurrentUserDto: UpdateCurrentUserDto): Promise<ApiMessageData> {
     const { firstName, lastName, username, profileImage } = updateCurrentUserDto;

@@ -1,4 +1,4 @@
-import { PlanFeatureProperty } from '@entities';
+import { PlanFeatureProperty, UserPlan } from '@entities';
 import { PlanTypeEnum } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
@@ -21,4 +21,7 @@ export class Plan {
 
   @OneToMany(() => PlanFeatureProperty, (featureProperty) => featureProperty.plan, { cascade: true })
   features: PlanFeatureProperty[];
+
+  @OneToMany(() => UserPlan, (userPlan) => userPlan.plan, { nullable: true })
+  userPlans: UserPlan[];
 }
