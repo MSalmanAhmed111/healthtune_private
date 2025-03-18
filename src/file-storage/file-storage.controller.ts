@@ -1,8 +1,6 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, UploadedFile, Put, ParseIntPipe, Query, Delete } from '@nestjs/common';
 import { FileStorageService } from './file-storage.service';
 import { UploadFileStorageDto, GetFileStorageDto, UpdateFileStorageDto } from '@dtos';
-import { ApiResponse } from '@nestjs/swagger';
-import { SuccessResponseMessages } from '@messages';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { ValidateId } from '@pipes/validate-id.pipe';
 

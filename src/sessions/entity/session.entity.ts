@@ -25,8 +25,8 @@ export class Session extends BaseEntity {
   @Column({ type: 'varchar', default: SessionStatusEnum.PROCESS })
   status: SessionStatusEnum;
 
-  @Column({ type: 'integer', nullable: true, default: null })
-  audioFile?: number | fileObject;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  audioFile?: string;
 
   @OneToOne(() => Transcript, (transcript) => transcript.session, { nullable: true, onDelete: 'CASCADE', cascade: true })
   @JoinColumn()
@@ -54,7 +54,7 @@ export class Session extends BaseEntity {
   @Column({ type: 'integer', default: null })
   patientId: number;
 
-  @ManyToOne(() => Patient, (patient) => patient.sessions, { nullable: true})
+  @ManyToOne(() => Patient, (patient) => patient.sessions, { nullable: true })
   @JoinColumn({ name: 'patientId' })
   patient: Patient;
 }

@@ -1,11 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
-import { ErrorResponseMessages, PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
+import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
+import { StorageProviderInterface } from 'src/common/providers';
 
 @Injectable()
 export class SessionService {
@@ -23,7 +24,7 @@ export class SessionService {
     @InjectRepository(Transcript)
     private readonly transcriptRepository: Repository<Transcript>,
     @InjectRepository(DiagnosisCodes)
-    private readonly diagnosisCodestRepository: Repository<DiagnosisCodes>,
+    private readonly diagnosisCodesRepository: Repository<DiagnosisCodes>,
     @InjectRepository(Patient)
     private readonly patientRepository: Repository<Patient>,
     @InjectRepository(Setting)
@@ -31,6 +32,8 @@ export class SessionService {
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
+    @Inject('StorageProvider')
+    private readonly storageProvider: StorageProviderInterface,
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
@@ -112,11 +115,11 @@ export class SessionService {
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
-    let diagnosisCodes = await this.diagnosisCodestRepository.findOne({ where: { sessionId } });
+    let diagnosisCodes = await this.diagnosisCodesRepository.findOne({ where: { sessionId } });
     if (diagnosisCodes) diagnosisCodes.content = content || diagnosisCodes.content;
-    else diagnosisCodes = this.diagnosisCodestRepository.create({ sessionId, content });
+    else diagnosisCodes = this.diagnosisCodesRepository.create({ sessionId, content });
 
-    diagnosisCodes = await this.diagnosisCodestRepository.save(diagnosisCodes);
+    diagnosisCodes = await this.diagnosisCodesRepository.save(diagnosisCodes);
     session.diagnosisCodes = diagnosisCodes;
 
     await this.sessionRepository.save(session);
@@ -124,7 +127,7 @@ export class SessionService {
   }
 
   async addTranscriptToSession(sessionId: number, reqBody: AddTranscriptDto): Promise<ApiMessageData> {
-    const { assemblyId, content, duration, audioFile } = reqBody;
+    const { assemblyId, content, duration } = reqBody;
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
@@ -140,24 +143,31 @@ export class SessionService {
     session.duration = duration || session.duration;
     session.transcript = transcript;
 
-    if (audioFile && audioFile !== session.audioFile) {
-      const audioExists = this.fileStorageRepository.findOne({ where: { id: audioFile as number } });
-      if (!audioExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
-      if (session.audioFile) {
-        const previousAudioFileExists = this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
-        if (previousAudioFileExists) await this.fileStorageService.deleteFileStorage(session.audioFile as number);
-      }
-      session.audioFile = audioFile;
-    }
-
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: transcript };
   }
 
+  async uploadSessionAudio(sessionId: number, audioFile: Express.Multer.File): Promise<ApiMessageData> {
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    if (session.audioFile) await this.storageProvider.deleteFile(session.audioFile);
+    const uploadedImage = await this.storageProvider.uploadFile(audioFile);
+    session.audioFile = uploadedImage;
+    await this.sessionRepository.save(session);
+    return { message: SuccessResponseMessages.successGeneral, data: session };
+  }
+
   async getSessions(getSessionsDto: GetSessionsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
     const { query, page, limit, sort = 'DESC', patientId } = getSessionsDto;
-    const qb = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.note', 'note').leftJoinAndSelect('session.patient', 'patient').orderBy('session.createdAt', sort);
+    const qb = this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.note', 'note')
+      .leftJoinAndSelect('session.transcript', 'transcript')
+      .leftJoinAndSelect('session.doctorNotes', 'doctorNotes')
+      .leftJoinAndSelect('session.diagnosisCodes', 'diagnosisCodes')
+      .leftJoinAndSelect('session.patient', 'patient')
+      .orderBy('session.createdAt', sort);
 
     if (query) {
       qb.andWhere(
@@ -180,10 +190,6 @@ export class SessionService {
     const lastPage = Math.ceil(total / limit);
     for (const session of sessions) {
       session.patient = undefined;
-      if (session.audioFile) {
-        const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
-        if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
-      }
     }
     return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
   }
@@ -192,10 +198,6 @@ export class SessionService {
     const where = userId !== undefined ? { id: sessionId, userId } : { id: sessionId };
     const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
-    if (session.audioFile) {
-      const audioFile = await this.fileStorageRepository.findOne({ where: { id: session.audioFile as number } });
-      if (audioFile) session.audioFile = { id: audioFile.id, fileName: audioFile.name };
-    }
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 

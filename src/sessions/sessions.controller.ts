@@ -1,10 +1,10 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Req, UploadedFile } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
 import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
-import { SwaggerApiResponse } from '@decorators';
+import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
 
 @ApiTags('Sessions')
@@ -31,6 +31,14 @@ export class SessionController {
   @SwaggerApiResponse('Add a note to a session')
   async addNoteToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
     return await this.sessionService.addNoteToSession(sessionId, reqBody);
+  }
+
+  @Put('/:id/audio-file')
+  @HttpCode(HttpStatus.OK)
+  @FileUpload('audioFile')
+  @SwaggerApiResponse('Upload session audio file')
+  async uploadSessionAudio(@Param('id', ValidateId) sessionId: number, @UploadedFile() audioFile: Express.Multer.File) {
+    return await this.sessionService.uploadSessionAudio(sessionId, audioFile);
   }
 
   @Put('/:id/transcript')

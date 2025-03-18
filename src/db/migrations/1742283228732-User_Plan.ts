@@ -27,9 +27,6 @@ export class UserPlan1742283228732 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "user_plan_usage" DROP CONSTRAINT "FK_aa4f8eb77cf6d662f952f22d825"`);
     await queryRunner.query(`ALTER TABLE "user_plan_usage" DROP CONSTRAINT "FK_fbb7e4af821bd7942c80367c926"`);
     await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_bd33177d862e61ccc1ff42a26ff"`);
-    await queryRunner.query(`ALTER TABLE "sessions" DROP CONSTRAINT "FK_57de40bc620f456c7311aa3a1e6"`);
-    await queryRunner.query(`ALTER TABLE "sessions" ALTER COLUMN "userId" DROP NOT NULL`);
-    await queryRunner.query(`ALTER TABLE "sessions" ADD CONSTRAINT "FK_57de40bc620f456c7311aa3a1e6" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
     await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "UQ_bd33177d862e61ccc1ff42a26ff"`);
     await queryRunner.query(`ALTER TABLE "users" DROP COLUMN "userPlanId"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_4846c2fbd62da9a99cb2f5146a"`);
