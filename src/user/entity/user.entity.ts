@@ -62,6 +62,6 @@ export class User {
   @JoinColumn({ name: 'userPlanId' })
   userPlan: UserPlan;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', default: null, nullable: true })
   userPlanId: number;
 }

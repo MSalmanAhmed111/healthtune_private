@@ -1,7 +1,6 @@
 import { Setting } from 'src/entity';
 import { DataSource, DataSourceOptions, Repository } from 'typeorm';
 import { dataSourceOptions } from '../db-config';
-import { dateFormat } from '@types';
 
 export class SettingSeeder {
   async run(): Promise<void> {
@@ -9,7 +8,7 @@ export class SettingSeeder {
     await dataSource.initialize();
     const accountSettingRepository: Repository<Setting> = dataSource.getRepository(Setting);
 
-    const action: string = 'update';
+    const action: string = 'create';
 
     const settings = [
       {

@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting } from '@entities';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
+import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 
 @Injectable()
 export class SessionService {
   constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
     @InjectRepository(Session)
     private readonly sessionRepository: Repository<Session>,
     @InjectRepository(Note)
@@ -34,6 +38,15 @@ export class SessionService {
     let { patientId, sex } = reqBody;
     let patientName = null;
 
+    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['userPlan', 'userPlan.usage', 'userPlan.usage.planFeatureProperty', 'userPlan.usage.planFeatureProperty.feature'] });
+
+    if (user.userPlan && user.userPlan.usage.length > 0) {
+      const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
+      if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
+    }
+
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records' } });
     if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
 
@@ -45,7 +58,7 @@ export class SessionService {
     } else if (patientFirstName && patientLastName) {
       if (patientRecordSettings.value) {
         let mreCount = '0';
-        let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
+        const patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
         if (patient) mreCount = patient.id.toString();
         const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
         let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex });

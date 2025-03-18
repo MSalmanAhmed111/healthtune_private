@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException, 
 import { FileStorage, Plan, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData } from '@types';
+import { ApiMessageDataPagination, ApiMessageData, PlanTypeEnum } from '@types';
 import { Repository, Brackets } from 'typeorm';
 import { GetUsersDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
@@ -38,15 +38,17 @@ export class UserService {
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
     if (userPlan) {
-      if(userPlan.isSubscriptionActive) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name} plan.`); 
+      if (userPlan.isSubscriptionActive) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
       userPlan.plan = plan;
       userPlan.startDate = new Date();
       userPlan.isSubscriptionActive = true;
     } else {
+      const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
       userPlan = this.userPlanRepository.create({
         user,
         plan,
         startDate: new Date(),
+        endDate,
         isSubscriptionActive: true,
         usage: [],
       });
@@ -55,10 +57,11 @@ export class UserService {
     userPlan.usage = userPlan.usage || [];
 
     for (const feature of plan.features) {
-      if (!feature?.properties?.isUnlimited) continue;
+      if (feature?.properties?.isUnlimited === null) continue;
+
+      console.log('comes here');
 
       const newUsage = this.userPlanUsageRepository.create({
-        userPlan,
         planFeatureProperty: feature,
         planFeaturePropertyId: feature.id,
         usageCount: feature.properties.limit || null,
@@ -68,6 +71,8 @@ export class UserService {
     }
 
     await this.userPlanRepository.save(userPlan);
+    user.userPlanId = userPlan.id;
+    await this.userRepository.save(user);
 
     return { message: SuccessResponseMessages.successGeneral, data: userPlan };
   }
@@ -98,7 +103,16 @@ export class UserService {
   }
 
   async getUser(userId: number): Promise<ApiMessageData> {
-    const fetchedUser = await this.userRepository.createQueryBuilder('user').select(this.userFields).where('user.id = :userId', { userId }).getOne();
+    const fetchedUser = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userPlan', 'userPlan')
+      .leftJoinAndSelect('userPlan.usage', 'usage')
+      .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
+      //.select(this.userFields)
+      .where('user.id = :userId', { userId })
+      .getOne();
+
     if (!fetchedUser) throw new NotFoundException(userErrorMessages.userNotExists);
     if (fetchedUser.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });

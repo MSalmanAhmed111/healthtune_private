@@ -1,9 +1,10 @@
-import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
 import { UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
+import { ValidateId } from '@pipes/validate-id.pipe';
 
 @ApiTags('User')
 @Controller('user')
@@ -24,4 +25,10 @@ export class UserController {
     return await this.userService.updateCurrentUser(+req.user.id, reqBody);
   }
 
+  @Put('/plan/:planId')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Update current user')
+  async selectPlanForUser(@Param('planId', ValidateId) planId: number, @Req() req: Request) {
+    return await this.userService.selectPlanForUser(+req.user.id, planId);
+  }
 }

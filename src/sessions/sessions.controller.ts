@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, R
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, PaginationUserQueryDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
