@@ -15,7 +15,7 @@ export class AppointmentService {
     private readonly patientRepository: Repository<Patient>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, color, duration } = reqBody;

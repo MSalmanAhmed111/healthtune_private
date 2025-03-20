@@ -1,4 +1,4 @@
-import { Session, UserPlan } from '@entities';
+import { Patient, Session, UserPlan } from '@entities';
 import { fileObject } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 
@@ -64,4 +64,7 @@ export class User {
 
   @Column({ type: 'integer', default: null, nullable: true })
   userPlanId: number;
+
+  @OneToMany(() => Patient, (patient) => patient.doctor, { cascade: true, onDelete: 'CASCADE' })
+  patients: Patient[];
 }
