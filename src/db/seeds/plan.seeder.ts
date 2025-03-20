@@ -1,7 +1,7 @@
 import { DataSource, DataSourceOptions, Repository } from 'typeorm';
 import { Plan, PlanFeature, PlanFeatureProperty } from '@entities';
 import { dataSourceOptions } from '../db-config';
-import { PlanTypeEnum, PlanFeatureNameEnum, FeatureLimitTypeEnum } from '@types';
+import { PlanTypeEnum, PlanFeatureNameEnum, FeatureLimitTypeEnum, SeedPlanNamesEnum } from '@types';
 
 export class PlanSeeder {
   async run(): Promise<void> {
@@ -41,7 +41,7 @@ export class PlanSeeder {
 
     const plans = [
       {
-        name: 'Basic Plan',
+        name: SeedPlanNamesEnum.BASIC_PLAN,
         description: 'A free plan for therapists and healthcare professionals testing the service.',
         price: '0',
         planType: PlanTypeEnum.MONTHLY,
@@ -54,7 +54,7 @@ export class PlanSeeder {
         ],
       },
       {
-        name: 'Premium Plan',
+        name: SeedPlanNamesEnum.PREMIUM_PLAN,
         description: 'Make the best schedule for your team.',
         price: '25',
         planType: PlanTypeEnum.MONTHLY,
@@ -83,7 +83,7 @@ export class PlanSeeder {
         ],
       },
       {
-        name: 'Enterprise Plan',
+        name: SeedPlanNamesEnum.ENTERPRISE_PLAN,
         description: 'Unlock all advanced features and get a discount for organizations with 5+ users.',
         price: '49',
         planType: PlanTypeEnum.MONTHLY,

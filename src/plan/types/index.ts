@@ -3,11 +3,18 @@ export enum PlanTypeEnum {
   YEARLY = 'Yearly',
 }
 
+export enum SeedPlanNamesEnum {
+  BASIC_PLAN = 'Basic Plan',
+  PREMIUM_PLAN = 'Premium Plan',
+  ENTERPRISE_PLAN = 'Enterprise Plan',
+}
+
 export enum FeatureLimitTypeEnum {
   DAILY = 'Daily',
   WEEKLY = 'Weekly',
   MONTHLY = 'Monthly',
   YEARLY = 'Yearly',
+  ALL_TIME = 'All Time',
 }
 export enum PlanFeatureNameEnum {
   SESSION_CREATION = 'Session Creation',
