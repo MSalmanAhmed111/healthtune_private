@@ -34,7 +34,7 @@ export class SessionService {
     private readonly fileStorageService: FileStorageService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
-  ) {}
+  ) { }
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientFirstName, patientLastName, sessionType, noteFormat, language } = reqBody;
@@ -54,7 +54,7 @@ export class SessionService {
     if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
 
     if (patientId) {
-      const patient = await this.patientRepository.findOne({ where: { id: patientId } });
+      const patient = await this.patientRepository.findOne({ where: { id: patientId, doctorId: userId } });
       if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
       patientName = patient.firstName + '' + patient.lastName;
       sex = patient.gender;
@@ -64,7 +64,7 @@ export class SessionService {
         const patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
         if (patient) mreCount = patient.id.toString();
         const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
-        let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex });
+        let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex, doctorId: userId });
         createdPatient = await this.patientRepository.save(createdPatient);
         patientId = createdPatient.id;
         patientName = createdPatient.firstName + ' ' + createdPatient.lastName;

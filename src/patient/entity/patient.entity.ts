@@ -1,5 +1,5 @@
-import { Entity, Column, OneToMany } from 'typeorm';
-import { Address, BaseEntity, Session } from 'src/entity';
+import { Entity, Column, OneToMany, JoinColumn, ManyToOne, Unique } from 'typeorm';
+import { Address, BaseEntity, Session, User } from 'src/entity';
 import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject } from '@types';
 
 export class PatientMedicalDetailsEntity {
@@ -78,6 +78,8 @@ export class PatientAdmissionDetailsEntity {
 
 @Entity({ name: 'patients' })
 export class Patient extends BaseEntity {
+  @Unique(['doctorId', 'email'])
+  
   @Column({ type: 'varchar', unique: true })
   mreNumber: string;
 
@@ -87,7 +89,7 @@ export class Patient extends BaseEntity {
   @Column({ type: 'varchar' })
   lastName: string;
 
-  @Column({ type: 'varchar', unique: true, nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   email: string;
 
   @Column({ type: 'date', nullable: true })
@@ -126,7 +128,11 @@ export class Patient extends BaseEntity {
   @OneToMany(() => Session, (session) => session.patient, { cascade: true })
   sessions: Session[];
 
-  // @ManyToOne(() => User, (user) => user.patients, { nullable: true })
-  // @JoinColumn({ name: 'userId' })
-  // user?: User;
+  @ManyToOne(() => User, (user) => user.patients, { nullable: true })
+  @JoinColumn({ name: 'doctorId' })
+  doctor?: User;
+
+  @Column({ type: 'integer', nullable: true, default: null })
+  doctorId?: number;
+
 }
