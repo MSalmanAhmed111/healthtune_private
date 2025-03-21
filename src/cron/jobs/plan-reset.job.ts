@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import moment from 'moment-timezone';
 import { UserPlan, UserPlanUsage } from 'src/entity';
+import { PlanTypeEnum } from '@types';
 
 @Injectable()
 export class PlanResetJob {
@@ -23,7 +24,7 @@ export class PlanResetJob {
 
         const userPlansToReset = await this.userPlanRepository.find({
             where: { resetDate: currentDate, isSubscriptionActive: true },
-            relations: ['usage', 'usage.planFeatureProperty'],
+            relations: ['plan', 'usage', 'usage.planFeatureProperty'],
         });
 
         if (userPlansToReset.length === 0) {
@@ -38,6 +39,10 @@ export class PlanResetJob {
                 }
             }
             await this.userPlanUsageRepository.save(userPlan.usage);
+            userPlan.startDate = currentDate;
+            userPlan.endDate = userPlan.plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : userPlan.plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
+            userPlan.resetDate = userPlan.endDate
+            await this.userPlanRepository.save(userPlan);
         }
 
         console.log(`Plan usage reset completed for ${userPlansToReset.length} users.`);
