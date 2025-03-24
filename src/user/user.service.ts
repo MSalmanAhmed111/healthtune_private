@@ -7,6 +7,8 @@ import { Repository, Brackets } from 'typeorm';
 import { GetUsersDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
+import { StripeHelper } from '@helpers/stripe.helper';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UserService {
@@ -23,14 +25,20 @@ export class UserService {
     private readonly fileStorageRepository: Repository<FileStorage>,
     @Inject('ClerkClient')
     private readonly clerkClient: ClerkClient,
+    private stripeHelper: StripeHelper,
+    private configService: ConfigService,
     private readonly fileStorageService: FileStorageService,
   ) {}
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
 
   async selectPlanForUser(userId: number, planId: number): Promise<ApiMessageData> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException(userErrorMessages.userNotExists);
+
+    if (!user.stripeCustomerId) {
+      (user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`)), (user = await this.userRepository.save(user));
+    }
 
     const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
     if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
@@ -74,7 +82,17 @@ export class UserService {
     user.userPlanId = userPlan.id;
     await this.userRepository.save(user);
 
-    return { message: SuccessResponseMessages.successGeneral, data: userPlan };
+    const appURL = this.configService.get('app.url');
+    const successURL = `${appURL}/home`;
+    const cancelURL = `${appURL}/home`;
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        url: await this.stripeHelper.createCardSession({ userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomertId, successURL, cancelURL),
+        userPlan,
+      },
+    };
   }
 
   async updateCurrentUser(userId: number, updateCurrentUserDto: UpdateCurrentUserDto): Promise<ApiMessageData> {

@@ -19,6 +19,14 @@ export interface ApiMessageDataPagination extends ApiMessageData {
   total: number;
 }
 
+
+export interface StripeProduct {
+  name: string,
+  description: string,
+  images: string[],
+  amount: number
+}
+
 export enum GenderEnum {
   MALE = 'Male',
   FEMALE = 'Female',
@@ -34,3 +42,4 @@ export enum SortEnum {
   ASC = 'ASC',
   DESC = 'DESC',
 }
+

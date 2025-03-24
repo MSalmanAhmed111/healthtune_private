@@ -33,8 +33,14 @@ export default () => ({
     password: process.env.EMAIL_PASS,
   },
   creds: {
+    // Clerk
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     clerkSecretKey: process.env.CLERK_SECRET_KEY,
     clerkWebhookSigningSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET,
+
+    // Stripe
+    stripeApiVersion: process.env.STRIPE_API_VERSION,
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    stripeWebhookSigningSecret: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
   },
 });

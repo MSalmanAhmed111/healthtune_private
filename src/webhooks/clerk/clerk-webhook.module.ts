@@ -4,10 +4,11 @@ import { ClerkWebhookService } from './clerk-webhook.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Plan, User, UserPlan, UserPlanUsage } from '@entities';
+import { StripeHelper } from '@helpers/index';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, UserPlan, Plan, UserPlanUsage])],
   controllers: [ClerkWebhookController],
-  providers: [ClerkWebhookService, ConfigService],
+  providers: [ClerkWebhookService, ConfigService, StripeHelper],
 })
 export class ClerkWebhookModule {}

@@ -1,16 +1,24 @@
 import { DataSource, DataSourceOptions, Repository } from 'typeorm';
-import { Plan, PlanFeature, PlanFeatureProperty } from '@entities';
+import { Plan, PlanFeature } from '@entities';
 import { dataSourceOptions } from '../db-config';
 import { PlanTypeEnum, PlanFeatureNameEnum, FeatureLimitTypeEnum, SeedPlanNamesEnum } from '@types';
+import { StripeHelper } from '@helpers/stripe.helper';
+import { ConfigService } from '@nestjs/config';
 
 export class PlanSeeder {
+  private stripeHelper: StripeHelper;
+  private configService: ConfigService;
+  constructor() {
+    this.configService = new ConfigService();
+    this.stripeHelper = new StripeHelper(this.configService);
+  }
   async run(): Promise<void> {
     enum ActionType {
       Update = 'Update',
       Create = 'Create',
     }
 
-    const action: ActionType = ActionType.Create;
+    const action: ActionType = ActionType.Update;
 
     const dataSource = new DataSource(dataSourceOptions as DataSourceOptions);
     await dataSource.initialize();
@@ -45,6 +53,8 @@ export class PlanSeeder {
         description: 'A free plan for therapists and healthcare professionals testing the service.',
         price: '0',
         planType: PlanTypeEnum.MONTHLY,
+        stripeProductId: null,
+        stripePriceId: null,
         features: [
           {
             displayName: '5 Sessions Per Month',
@@ -58,6 +68,8 @@ export class PlanSeeder {
         description: 'Make the best schedule for your team.',
         price: '25',
         planType: PlanTypeEnum.MONTHLY,
+        stripeProductId: null,
+        stripePriceId: null,
         features: [
           {
             displayName: '50 Sessions Per Month',
@@ -87,6 +99,8 @@ export class PlanSeeder {
         description: 'Unlock all advanced features and get a discount for organizations with 5+ users.',
         price: '49',
         planType: PlanTypeEnum.MONTHLY,
+        stripeProductId: null,
+        stripePriceId: null,
         features: [
           {
             displayName: 'Unlimited Sessions',
@@ -114,16 +128,28 @@ export class PlanSeeder {
 
     for (const planData of plans) {
       let plan = await planRepository.findOne({ where: { name: planData.name } });
-
+      const { name, description, price, planType } = plan;
       if ((action as ActionType) === ActionType.Create && !plan) {
-        plan = await planRepository.save({
-          ...planData,
-          name: planData.name,
-          description: planData.description,
-          price: planData.price,
-          planType: planData.planType,
-        });
+        if (!plan) {
+          const stripeProduct = await this.stripeHelper.createProduct(name, description);
+          const stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, planType);
+          plan.stripeProductId = stripeProduct.id;
+          plan.stripePriceId = stripePrice.id;
+          plan = await planRepository.save(plan);
+        }
+        continue;
       } else if ((action as ActionType) === ActionType.Update && plan) {
+        let stripeProduct = null,
+          stripePrice = null;
+        if (!plan.stripePriceId) {
+          stripeProduct = await this.stripeHelper.createProduct(name, description);
+          planData.stripeProductId = stripeProduct.id;
+        }
+        if (!planData.stripePriceId) {
+          stripePrice = await this.stripeHelper.createProductPrice(planData.stripeProductId, +price, planType);
+          planData.stripePriceId = stripePrice.id;
+        }
+
         await planRepository.update(plan.id, planData);
       }
     }

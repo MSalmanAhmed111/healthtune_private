@@ -19,6 +19,12 @@ export class Plan {
   @Column({ type: 'varchar' })
   planType: PlanTypeEnum;
 
+  @Column({ type: 'varchar', nullable: true, default: null })
+  stripePriceId: string;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  stripeProductId: string;
+
   @OneToMany(() => PlanFeatureProperty, (featureProperty) => featureProperty.plan, { cascade: true })
   features: PlanFeatureProperty[];
 

@@ -67,4 +67,13 @@ export class User {
 
   @OneToMany(() => Patient, (patient) => patient.doctor, { cascade: true, onDelete: 'CASCADE' })
   patients: Patient[];
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  stripeCustomerId: string;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  stripeCustomertId: string;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  stripeSubscriptiontId: string;
 }

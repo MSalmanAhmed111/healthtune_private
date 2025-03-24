@@ -5,11 +5,12 @@ import { ClerkClientProvider } from 'src/common/providers';
 import { FileStorage, Plan, PlanFeature, PlanFeatureProperty, User, UserPlan, UserPlanUsage } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileStorageModule } from 'src/file-storage/file-storage.module';
+import { StripeHelper } from '@helpers/stripe.helper';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, FileStorage, Plan, PlanFeature, PlanFeatureProperty, UserPlan, UserPlanUsage]), FileStorageModule],
   controllers: [UserController],
-  providers: [UserService, ClerkClientProvider],
+  providers: [UserService, ClerkClientProvider, StripeHelper],
   exports: [UserService],
 })
 export class UserModule {}

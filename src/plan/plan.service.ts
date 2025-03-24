@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan, PlanFeatureProperty, PlanFeature } from '@entities';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination } from '@types';
 import { CreatePlanDto, PaginationQueryDto, UpdatePlanDto } from 'src/dto';
 import { PlanErrorMessages, SuccessResponseMessages } from '@messages';
+import { StripeHelper } from '@helpers/stripe.helper';
+import Stripe from 'stripe';
 
 @Injectable()
 export class PlanService {
@@ -12,6 +14,7 @@ export class PlanService {
     @InjectRepository(Plan) private readonly planRepository: Repository<Plan>,
     @InjectRepository(PlanFeature) private readonly featureRepository: Repository<PlanFeature>,
     @InjectRepository(PlanFeatureProperty) private readonly featurePropertyRepository: Repository<PlanFeatureProperty>,
+    private readonly stripeHelper: StripeHelper,
   ) {}
 
   async createPlan(reqBody: CreatePlanDto): Promise<ApiMessageData> {
@@ -20,7 +23,13 @@ export class PlanService {
     let plan = await this.planRepository.findOne({ where: { name } });
     if (plan) throw new BadRequestException(PlanErrorMessages.planAlreadyExists);
 
-    plan = this.planRepository.create({ name, description, price, planType, features: [] });
+    let stripeProduct: Stripe.Response<Stripe.Product> = null;
+    let stripePrice: Stripe.Response<Stripe.Price> = null;
+
+    stripeProduct = await this.stripeHelper.createProduct(name, description);
+    stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, plan.planType);
+
+    plan = this.planRepository.create({ name, description, price, planType, features: [], stripePriceId: stripePrice.id, stripeProductId: stripeProduct.id });
     await this.planRepository.save(plan);
 
     if (features && features.length > 0) {
@@ -47,19 +56,46 @@ export class PlanService {
   }
 
   async updatePlan(planId: number, reqBody: UpdatePlanDto): Promise<ApiMessageData> {
-    const { name, price, planType, features } = reqBody;
+    const { name, description, price, planType, features } = reqBody;
 
     let plan = await this.planRepository.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
 
+    let stripeProduct: Stripe.Response<Stripe.Product>;
+    let stripePrice: Stripe.Response<Stripe.Price>;
+    if (plan.stripeProductId) stripeProduct = await this.stripeHelper.getProduct(plan.stripeProductId);
+    if (plan.stripePriceId) stripePrice = await this.stripeHelper.getProductPrice(plan.stripePriceId);
+
     if (name) {
-      const existingPlan = await this.planRepository.findOne({ where: { name } });
+      const existingPlan = await this.planRepository.findOne({ where: { name, id: Not(planId) } });
       if (existingPlan && existingPlan.id !== planId) throw new BadRequestException(PlanErrorMessages.planNameAlreadyExists);
+      plan.name = name;
+      if (stripeProduct) stripeProduct.name = name;
     }
 
-    plan.name = name || plan.name;
-    plan.price = price || plan.price;
-    plan.planType = planType || plan.planType;
+    if (description && description != plan.description) {
+      plan.description = description;
+      if (stripeProduct) stripeProduct.description = description;
+    }
+
+    if (planType && planType != plan.planType) {
+      plan.planType = planType || plan.planType;
+      if (stripePrice) await this.stripeHelper.archiveProductPrice(stripePrice.id);
+      if (stripeProduct) stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, plan.planType);
+      else {
+        stripeProduct = await this.stripeHelper.createProduct(name, description);
+        stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, plan.planType);
+      }
+    }
+
+    if (price && price != plan.price) {
+      plan.price = price;
+      if (stripePrice) stripePrice.unit_amount = +price;
+    }
+
+    await this.stripeHelper.updateProduct(stripeProduct.id, stripeProduct);
+    await this.stripeHelper.updatePrice(stripePrice.id, stripePrice);
+
     plan = await this.planRepository.save(plan);
     plan.features = [];
 
