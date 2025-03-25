@@ -45,42 +45,42 @@ export class UserService {
 
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
-    if (userPlan) {
-      if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
-      userPlan.plan = plan;
-      userPlan.startDate = new Date();
-      userPlan.isSubscriptionActive = true;
-    } else {
-      const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
-      userPlan = this.userPlanRepository.create({
-        user,
-        plan,
-        startDate: new Date(),
-        endDate,
-        isSubscriptionActive: true,
-        usage: [],
-      });
-    }
+    //    if (userPlan) {
+    if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
+    //   userPlan.plan = plan;
+    //   userPlan.startDate = new Date();
+    //   userPlan.isSubscriptionActive = true;
+    // } else {
+    //   const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
+    //   userPlan = this.userPlanRepository.create({
+    //     user,
+    //     plan,
+    //     startDate: new Date(),
+    //     endDate,
+    //     isSubscriptionActive: true,
+    //     usage: [],
+    //   });
+    // }
 
-    userPlan.usage = userPlan.usage || [];
+    // userPlan.usage = userPlan.usage || [];
 
-    for (const feature of plan.features) {
-      if (feature?.properties?.isUnlimited === null) continue;
+    // for (const feature of plan.features) {
+    //   if (feature?.properties?.isUnlimited === null) continue;
 
-      const newUsage = this.userPlanUsageRepository.create({
-        planFeatureProperty: feature,
-        planFeaturePropertyId: feature.id,
-        usageCount: feature.properties.limit || null,
-      });
+    //   const newUsage = this.userPlanUsageRepository.create({
+    //     planFeatureProperty: feature,
+    //     planFeaturePropertyId: feature.id,
+    //     usageCount: feature.properties.limit || null,
+    //   });
 
-      userPlan.usage.push(newUsage);
-    }
+    //   userPlan.usage.push(newUsage);
+    // }
 
-    await this.userPlanRepository.save(userPlan);
-    user.userPlanId = userPlan.id;
-    await this.userRepository.save(user);
+    // await this.userPlanRepository.save(userPlan);
+    // user.userPlanId = userPlan.id;
+    // await this.userRepository.save(user);
 
-    const appURL = this.configService.get('app.url');
+    const appURL = this.configService.get('APP_URL') || 'https://dev-api.healthytune.com';
     const successURL = `${appURL}/home`;
     const cancelURL = `${appURL}/home`;
 
@@ -122,6 +122,7 @@ export class UserService {
     const fetchedUser = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userPlan', 'userPlan')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
       .leftJoinAndSelect('userPlan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
       .leftJoinAndSelect('planFeatureProperty.feature', 'feature')

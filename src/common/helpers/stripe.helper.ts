@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PlanTypeEnum } from '@types';
+import { PlanTypeEnum, UserCardDetails } from '@types';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -14,6 +14,16 @@ export class StripeHelper {
       typescript: true,
     });
     this.endpointSecret = this.configService.get('STRIPE_WEBHOOK_SIGNING_SECRET');
+  }
+
+  /** Webhook Handlers*/
+  // Converts request to stripe events
+  public async stripeEvent(payloadString: string): Promise<Stripe.Event> {
+    const header = this.stripe.webhooks.generateTestHeaderString({
+      payload: payloadString,
+      secret: this.endpointSecret,
+    });
+    return this.stripe.webhooks.constructEvent(payloadString, header, this.endpointSecret);
   }
 
   /** Sessions APIs*/
@@ -36,6 +46,103 @@ export class StripeHelper {
       return session.url;
     } catch (error) {
       throw new Error(error.message);
+    }
+  }
+
+  // Create payment session
+  public async createPaymentSession(
+    metaData: object,
+    stripeCustomerId: string,
+    successUrl: string,
+    cancelUrl: string,
+    // product: StripeProduct
+    priceId: string,
+  ): Promise<string> {
+    try {
+      const session = await this.stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer: stripeCustomerId,
+        // payment_method_collection: "if_required",
+        metadata: { ...metaData },
+        mode: 'subscription',
+        // mode: "payment",
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        line_items: [
+          {
+            // price_data: {
+            //   currency: "usd",
+            //   product_data: { name: product.name, description: product.description, images: product.images },
+            //   unit_amount: product.amount * 100
+            //   // recurring: { interval: "month" }
+            // },
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+      });
+      return session.url;
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async cancelSubscription(subscriptionId: string, comment?: string): Promise<void> {
+    try {
+      await this.stripe.subscriptions.cancel(subscriptionId, { cancellation_details: { comment } });
+    } catch (e) {
+      throw new Error(e.message);
+    }
+  }
+
+  /** Card APIs*/
+  // Retrieve saved card (If customer has any)
+  public async retrieveCard(stripeCustomerId: string): Promise<UserCardDetails> {
+    try {
+      const paymentMethods = await this.stripe.customers.listPaymentMethods(stripeCustomerId, { type: 'card' });
+      const cardDetails = paymentMethods.data[0];
+      return {
+        id: cardDetails?.id,
+        brand: cardDetails?.card.brand,
+        country: cardDetails?.card.country,
+        expiryMonth: cardDetails?.card.exp_month,
+        expiryYear: cardDetails?.card.exp_year,
+        last4: cardDetails?.card.last4,
+        holderName: cardDetails?.billing_details.name,
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async retrieveCards(stripeCustomerId: string): Promise<UserCardDetails[]> {
+    try {
+      const paymentMethods = await this.stripe.customers.listPaymentMethods(stripeCustomerId, { type: 'card' });
+      if (!paymentMethods) return undefined;
+      let userCards: UserCardDetails[] = [];
+      if (paymentMethods?.data.length) {
+        userCards = paymentMethods.data.map((obj) => ({
+          id: obj.id,
+          brand: obj.card.brand,
+          country: obj.card.country,
+          expiryMonth: obj.card.exp_month,
+          expiryYear: obj.card.exp_year,
+          last4: obj.card.last4,
+          holderName: obj?.billing_details.name,
+        }));
+      }
+      return userCards;
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  // Detach payment method
+  public async deleteCard(paymentMethodId: string): Promise<void> {
+    try {
+      await this.stripe.paymentMethods.detach(paymentMethodId);
+    } catch (e) {
+      throw new Error(e.message);
     }
   }
 

@@ -65,6 +65,9 @@ export class User {
   @Column({ type: 'integer', default: null, nullable: true })
   userPlanId: number;
 
+  @Column({ type: 'boolean', default: false})
+  cardAdded: boolean;
+
   @OneToMany(() => Patient, (patient) => patient.doctor, { cascade: true, onDelete: 'CASCADE' })
   patients: Patient[];
 
