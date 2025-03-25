@@ -19,6 +19,8 @@ export class Plan {
   @Column({ type: 'varchar' })
   planType: PlanTypeEnum;
 
+  
+
   @OneToMany(() => PlanFeatureProperty, (featureProperty) => featureProperty.plan, { cascade: true })
   features: PlanFeatureProperty[];
 

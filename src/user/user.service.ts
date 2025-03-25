@@ -106,6 +106,7 @@ export class UserService {
     const fetchedUser = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userPlan', 'userPlan')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
       .leftJoinAndSelect('userPlan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
       .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
