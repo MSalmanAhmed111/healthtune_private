@@ -8,10 +8,12 @@ import { ConfigService } from '@nestjs/config';
 export class PlanSeeder {
   private stripeHelper: StripeHelper;
   private configService: ConfigService;
+
   constructor() {
     this.configService = new ConfigService();
     this.stripeHelper = new StripeHelper(this.configService);
   }
+
   async run(): Promise<void> {
     enum ActionType {
       Update = 'Update',
@@ -149,8 +151,7 @@ export class PlanSeeder {
           stripePrice = await this.stripeHelper.createProductPrice(planData.stripeProductId, +price, planType);
           planData.stripePriceId = stripePrice.id;
         }
-
-        await planRepository.update(plan.id, planData);
+        await planRepository.save({id:plan.id, ...planData});
       }
     }
 

@@ -16,10 +16,11 @@ export class AuthService {
   async generateToken(userId: number) {
     try {
       const fetchedUser = await this.userRepository.findOne({ where: { id: userId } });
-      if (!fetchedUser) throw new NotFoundException('User not found with clerkId: ' + userId);
+      if (!fetchedUser) throw new NotFoundException(`User not found with clerkId: ${userId}`);
+
       const clerkUserId = fetchedUser.clerkUserId;
       const sessions = await this.clerkClient.sessions.getSessionList({ userId: clerkUserId });
-      if (!sessions.data.length) throw new NotFoundException('No session found for user with clerkId: ' + userId);
+
       let sessionId = null;
       for (const session of sessions.data) {
         if (session.status !== 'removed') {
@@ -27,7 +28,14 @@ export class AuthService {
           break;
         }
       }
-      if (sessionId === null) throw new NotFoundException('No active session found for user with clerkId: ' + userId);
+
+      // If no active session is found, generate a new token
+      if (!sessionId) {
+        const token = await this.clerkClient.signInTokens.createSignInToken({ userId: clerkUserId, expiresInSeconds: 220000 });
+        return { token };
+      }
+
+      // Fetch the token for the existing session
       const token = await this.clerkClient.sessions.getToken(sessionId, 'Standard');
       return { token };
     } catch (error) {

@@ -36,7 +36,10 @@ export class ClerkWebhookService {
       user.privateMetadata = private_metadata ?? user.privateMetadata;
       user.unsafeMetadata = unsafe_metadata ?? user.unsafeMetadata;
 
-      if (!user.stripeCustomerId) (user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`)), await this.userRepository.save(user);
+      if (!user.stripeCustomerId) {
+        user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
+        user = await this.userRepository.save(user);
+      }
       return { message: SuccessResponseMessages.successGeneral, data: user };
     } else {
       user = this.userRepository.create({

@@ -46,7 +46,7 @@ export class UserService {
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
     if (userPlan) {
-      if (userPlan.isSubscriptionActive) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
+      if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
       userPlan.plan = plan;
       userPlan.startDate = new Date();
       userPlan.isSubscriptionActive = true;
@@ -66,8 +66,6 @@ export class UserService {
 
     for (const feature of plan.features) {
       if (feature?.properties?.isUnlimited === null) continue;
-
-      console.log('comes here');
 
       const newUsage = this.userPlanUsageRepository.create({
         planFeatureProperty: feature,
@@ -89,7 +87,7 @@ export class UserService {
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
-        url: await this.stripeHelper.createCardSession({ userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomertId, successURL, cancelURL),
+        url: await this.stripeHelper.createCardSession({ userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL),
         userPlan,
       },
     };

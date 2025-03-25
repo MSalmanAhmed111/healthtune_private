@@ -9,11 +9,11 @@ export class StripeHelper {
   private readonly endpointSecret: string;
 
   constructor(private configService: ConfigService) {
-    this.stripe = new Stripe(this.configService.get('creds.stripeSecretKey'), {
-      apiVersion: this.configService.get('creds.stripeApiVersion'),
+    this.stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'), {
+      apiVersion: this.configService.get('STRIPE_API_VERSION'),
       typescript: true,
     });
-    this.endpointSecret = this.configService.get('creds.stripeWebhookSigningSecret');
+    this.endpointSecret = this.configService.get('STRIPE_WEBHOOK_SIGNING_SECRET');
   }
 
   /** Sessions APIs*/

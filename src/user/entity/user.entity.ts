@@ -72,8 +72,5 @@ export class User {
   stripeCustomerId: string;
 
   @Column({ type: 'varchar', nullable: true, default: null })
-  stripeCustomertId: string;
-
-  @Column({ type: 'varchar', nullable: true, default: null })
   stripeSubscriptiontId: string;
 }
