@@ -61,18 +61,18 @@ export class ClerkWebhookService {
     if (!plan) return { message: 'User Created, but Unable to create default plan for user as no basic plan found.', data: user };
 
     const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
-    const userPlan = this.userPlanRepository.create({
+    let userPlan = this.userPlanRepository.create({
       user,
       plan,
       startDate: new Date(),
       endDate,
+      resetDate: endDate,
       isSubscriptionActive: true,
       usage: [],
     });
 
-    userPlan.usage = userPlan.usage || [];
-
     for (const feature of plan.features) {
+      console.log({ feature });
       if (feature?.properties?.isUnlimited === null) continue;
 
       const newUsage = this.userPlanUsageRepository.create({
@@ -83,8 +83,8 @@ export class ClerkWebhookService {
 
       userPlan.usage.push(newUsage);
     }
-
-    await this.userPlanRepository.save(userPlan);
+    console.log({ userPlan });
+    userPlan = await this.userPlanRepository.save(userPlan);
     user.userPlanId = userPlan.id;
     await this.userRepository.save(user);
     return { message: SuccessResponseMessages.successGeneral, data: user };

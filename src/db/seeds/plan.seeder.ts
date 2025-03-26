@@ -1,5 +1,5 @@
 import { DataSource, DataSourceOptions, Repository } from 'typeorm';
-import { Plan, PlanFeature } from '@entities';
+import { Plan, PlanFeature, PlanFeatureProperty } from '@entities';
 import { dataSourceOptions } from '../db-config';
 import { PlanTypeEnum, PlanFeatureNameEnum, FeatureLimitTypeEnum, SeedPlanNamesEnum } from '@types';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -26,6 +26,7 @@ export class PlanSeeder {
     await dataSource.initialize();
     const planRepository: Repository<Plan> = dataSource.getRepository(Plan);
     const planFeatureRepository: Repository<PlanFeature> = dataSource.getRepository(PlanFeature);
+    const planFeaturePropertyRepository: Repository<PlanFeatureProperty> = dataSource.getRepository(PlanFeatureProperty);
 
     const sessionCreationPlanFeatures = await planFeatureRepository.findOne({ where: { name: PlanFeatureNameEnum.SESSION_CREATION } });
     const documentGenerationPlanFeatures = await planFeatureRepository.findOne({ where: { name: PlanFeatureNameEnum.DOCUMENT_GENERATION } });
@@ -49,7 +50,7 @@ export class PlanSeeder {
       return;
     }
 
-    const plans = [
+    const plans: any = [
       {
         name: SeedPlanNamesEnum.BASIC_PLAN,
         description: 'A free plan for therapists and healthcare professionals testing the service.',
@@ -108,21 +109,25 @@ export class PlanSeeder {
             displayName: 'Unlimited Sessions',
             properties: { isUnlimited: true, limit: null, limitType: null },
             feature: sessionCreationPlanFeatures,
+            description: null,
           },
           {
             displayName: 'AI Document Generation',
             properties: {},
             feature: documentGenerationPlanFeatures,
+            description: null,
           },
           {
             displayName: 'Customizable Templates',
             properties: { isUnlimited: true, limit: null, limitType: null },
             feature: templateCustomizationPlanFeatures,
+            description: null,
           },
           {
             displayName: 'Macros & Replace Forever',
             properties: {},
             feature: macroReplacementPlanFeatures,
+            description: null,
           },
         ],
       },
@@ -141,17 +146,30 @@ export class PlanSeeder {
         }
         continue;
       } else if ((action as ActionType) === ActionType.Update && plan) {
-        let stripeProduct = null,
-          stripePrice = null;
-        if (!plan.stripePriceId) {
-          stripeProduct = await this.stripeHelper.createProduct(name, description);
-          planData.stripeProductId = stripeProduct.id;
+        const stripeProductId = plan.stripeProductId || null,
+          stripePriceId = plan.stripePriceId || null;
+        if (!stripeProductId) {
+          const newStripeProduct = await this.stripeHelper.createProduct(name, description);
+          planData.stripeProductId = newStripeProduct.id;
         }
-        if (!planData.stripePriceId) {
-          stripePrice = await this.stripeHelper.createProductPrice(planData.stripeProductId, +price, planType);
-          planData.stripePriceId = stripePrice.id;
+        if (!stripePriceId) {
+          const newStripePrice = await this.stripeHelper.createProductPrice(planData.stripeProductId, +price, planType);
+          planData.stripePriceId = newStripePrice.id;
         }
-        await planRepository.save({id:plan.id, ...planData});
+        for (let i = 0; i < planData.features.length; i++) {
+          const feature = planData.features[i];
+
+          const existingFeature = await planFeaturePropertyRepository.findOne({
+            where: { plan: { id: plan.id }, feature: { name: feature.feature.name } },
+          });
+
+          console.log({ existingFeature });
+
+          if (existingFeature) {
+            planData.features[i] = { ...existingFeature, ...feature };
+          }
+        }
+        await planRepository.save({ id: plan.id, ...planData });
       }
     }
 

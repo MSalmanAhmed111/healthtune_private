@@ -1,9 +1,9 @@
-import { User, Plan, UserPlan, UserPlanUsage } from '@entities';
+import { User, Plan, UserPlan, UserPlanUsage, PlanFeature } from '@entities';
 import { StripeHelper } from '@helpers/stripe.helper';
 import { PlanErrorMessages } from '@messages';
-import { BadRequestException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { PlanTypeEnum } from '@types';
+import { PlanTypeEnum, SeedPlanNamesEnum } from '@types';
 import Stripe from 'stripe';
 import { Repository } from 'typeorm';
 
@@ -18,6 +18,8 @@ export class StripeWebhookService {
     private readonly userPlanRepository: Repository<UserPlan>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+    @InjectRepository(PlanFeature)
+    private readonly PlanFeatureRepository: Repository<PlanFeature>,
     private stripeHelper: StripeHelper,
   ) {}
 
@@ -30,136 +32,189 @@ export class StripeWebhookService {
       console.log(`Webhook Error: ${err.message}`);
       return HttpStatus.BAD_REQUEST;
     }
+
     switch (event.type) {
-      // Onboarding case
-      case 'checkout.session.completed':
+      case 'checkout.session.completed': {
         const completedSession = event.data.object as any;
         if (completedSession.mode === 'setup') {
-          // Card setup
+          // Handle card setup
           const { userId } = completedSession.metadata;
-          // Check if user has added card previously
           const user = await this.userRepository.findOne({ where: { id: userId } });
+
           if (user.cardAdded) {
-            // If Card exists, delete previous card from stripe
             const userCards = await this.stripeHelper.retrieveCards(user.stripeCustomerId);
-            if (userCards.length) await this.stripeHelper.deleteCard(userCards[1].id);
+            if (userCards.length) await this.stripeHelper.deleteCard(userCards[0].id);
           }
-          // Update user account settings
+
           user.cardAdded = true;
           await this.userRepository.save(user);
-        } else if (completedSession.mode === 'subscription') {
-          // Payment
-          if (completedSession.payment_status === 'paid') {
-            const { userId, planId } = completedSession.metadata;
-            // Find user and update subscription
-            const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
-                if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
-            
-                let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
-            
-                if (userPlan) {
-                    await this.userPlanUsageRepository.delete({userPlanId: userPlan.id})
-                    await this.userPlanRepository.delete({id: userPlan.id})
-                    userPlan.plan = plan;
-                  userPlan.startDate = new Date();
-                  userPlan.isSubscriptionActive = true;
-                } else {
-                  const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
-                  userPlan = this.userPlanRepository.create({
-                    user,
-                    plan,
-                    startDate: new Date(),
-                    endDate,
-                    isSubscriptionActive: true,
-                    usage: [],
-                  });
-                }
-            
-                userPlan.usage = userPlan.usage || [];
-            
-                for (const feature of plan.features) {
-                  if (feature?.properties?.isUnlimited === null) continue;
-            
-                  const newUsage = this.userPlanUsageRepository.create({
-                    planFeatureProperty: feature,
-                    planFeaturePropertyId: feature.id,
-                    usageCount: feature.properties.limit || null,
-                  });
-            
-                  userPlan.usage.push(newUsage);
-                }
-            
-                await this.userPlanRepository.save(userPlan);
-                user.userPlanId = userPlan.id;
-                await this.userRepository.save(user);
+        } else if (completedSession.mode === 'subscription' && completedSession.payment_status === 'paid') {
+          // Handle new subscription
+          const { userId, planId } = completedSession.metadata;
+          console.log({userId, planId})
+          const user = await this.userRepository.findOne({ where: { id: userId } });
+          user.stripeSubscriptiontId = completedSession.subscription
+          await this.userRepository.save(user);
+          const plan = await this.planRepository.findOne({
+            where: { id: planId },
+            relations: ['features'],
+          });
+          console.log("USER===> : ", user)
+          console.log("PLAN===> : ", plan)
+          if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
+          await this.createNewUserPlan(user, plan);
         }
         break;
-
-      // Delayed payment successful
-      case 'checkout.session.async_payment_succeeded':
+      }
+      case 'checkout.session.async_payment_succeeded': {
         const succeededSession = event.data.object as any;
-        if (succeededSession.mode === 'subscription') {
-          // Payment
-          if (succeededSession.payment_status === 'paid') {
-            const { userId, planId } = succeededSession.metadata;
-            // Find user and update subscription
-            await this.AccountSetting.updateOne(
-              { user: userId },
-              {
-                $set: {
-                  plan: planId,
-                  subscriptionActive: true,
-                },
-              },
-            );
-          }
+        if (succeededSession.mode === 'subscription' && succeededSession.payment_status === 'paid') {
+          const { userId, planId } = succeededSession.metadata;
+          const plan = await this.planRepository.findOne({
+            where: { id: planId },
+            relations: ['features'],
+          });
+
+          if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
+
+          const userPlan = await this.userPlanRepository.findOne({
+            where: { user: { id: userId } },
+            relations: ['user', 'usage', 'usage.planFeatureProperty'],
+          });
+
+          if (userPlan) await this.renewUserPlan(userPlan, plan);
         }
         break;
-
-      // When monthly billing charge is successful
-      case 'invoice.paid':
-        const succeededInvoice = event.data.object as any;
-        const { customer, hosted_invoice_url } = succeededInvoice;
-        // Find user and update subscription status
-        const userSettings: any = await this.AccountSetting.findOne({ 'stripe.customerId': customer }).populate({
-          path: 'user',
-          select: 'firstName lastName email',
+      }
+      case 'invoice.paid': {
+        const paidInvoice = event.data.object as any;
+        const user = await this.userRepository.findOne({
+          where: { stripeCustomerId: paidInvoice.customer },
+          relations: ['userPlan'],
         });
-        await this.AccountSetting.updateOne({ 'stripe.customerId': customer }, { $set: { subscriptionActive: true } });
-        const link = {
-          url: hosted_invoice_url,
-          text: 'See Invoice ->',
-        };
-        // Send email to user
-        if (userSettings) {
-          this.mailHelper.sendEmail(userSettings.user.email, 'Invoice Paid', 'Invoice payment was successful, Please visit this URL for more information: ', '', link, ' ');
+
+        if (user?.userPlan) {
+          const plan = await this.planRepository.findOne({
+            where: { id: user.userPlan.planId },
+            relations: ['features'],
+          });
+
+          if (plan) await this.renewUserPlan(user.userPlan, plan);
         }
         break;
-
-      // When monthly billing charge is failed
-      case 'invoice.payment_failed':
+      }
+      case 'invoice.payment_failed': {
         const failedInvoice = event.data.object as any;
-        // Find user and update subscription status
-        await this.AccountSetting.updateOne({ 'stripe.customerId': failedInvoice.customer }, { $set: { subscriptionActive: false } });
-        break;
+        const user = await this.userRepository.findOne({
+          where: { stripeCustomerId: failedInvoice.customer },
+        });
 
-      case 'customer.subscription.deleted':
-        const customerSubscriptionDeleted = event.data.object as any;
-        await this.AccountSetting.updateOne(
-          { 'stripe.customerId': customerSubscriptionDeleted.customer },
-          {
-            $set: {
-              subscriptionActive: false,
-              plan: '',
-            },
-          },
-        );
+        if (user?.userPlanId) {
+          await this.userPlanRepository.update(user.userPlanId, {
+            isSubscriptionActive: false,
+          });
+        }
         break;
+      }
+      case 'customer.subscription.deleted': {
+        const deletedSubscription = event.data.object as any;
+        const user = await this.userRepository.findOne({
+          where: { stripeCustomerId: deletedSubscription.customer },
+        });
 
+        // Get default plan (free tier)
+        const defaultPlan = await this.planRepository.findOne({
+          where: { name: SeedPlanNamesEnum.BASIC_PLAN },
+        });
+
+        if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
+        await this.createNewUserPlan(user, defaultPlan);
+        break;
+      }
       default:
-        console.log(`Unhandled event type ${event.type}`);
+        {
+          console.log(`Unhandled event type ${event.type}`);
+        }
+
+        return HttpStatus.OK;
     }
-    // Return a 200 response to acknowledge receipt of the event
-    return HttpStatus.OK;
+  }
+
+  private calculateEndDate(planType: PlanTypeEnum): Date | null {
+    const currentDate = new Date();
+    switch (planType) {
+      case PlanTypeEnum.MONTHLY:
+        return new Date(currentDate.setMonth(currentDate.getMonth() + 1));
+      case PlanTypeEnum.YEARLY:
+        return new Date(currentDate.setFullYear(currentDate.getFullYear() + 1));
+      default:
+        return null;
+    }
+  }
+
+  private async resetUsageCounts(userPlan: UserPlan): Promise<void> {
+    for (const usage of userPlan.usage) {
+      if (!usage.planFeatureProperty) continue;
+      usage.usageCount = usage.planFeatureProperty.properties.limit ?? null;
+      await this.userPlanUsageRepository.save(usage);
+    }
+  }
+
+  private async renewUserPlan(userPlan: UserPlan, plan: Plan): Promise<UserPlan> {
+    const endDate = this.calculateEndDate(plan.planType);
+    userPlan.endDate = endDate;
+    userPlan.isSubscriptionActive = true;
+    userPlan.resetDate = endDate;
+
+    await this.resetUsageCounts(userPlan);
+    return this.userPlanRepository.save(userPlan);
+  }
+
+  private async createNewUserPlan(user: User, plan: Plan): Promise<UserPlan> {
+    // Clean up existing plan
+    const existingUserPlan = await this.userPlanRepository.findOne({
+      where: { user: { id: user.id } },
+      relations: ['usage'],
+    });
+
+    if (existingUserPlan) {
+      await this.userPlanUsageRepository.delete({ userPlanId: existingUserPlan.id });
+      user.userPlan = null;
+      user.userPlanId = null;
+      user = await this.userRepository.save(user);
+      await this.userPlanRepository.delete({ id: existingUserPlan.id });
+      console.log("REMOVED USER PREVIOUS PLAN=============>: ", user)
+    }
+
+    // Create new plan
+    const endDate = this.calculateEndDate(plan.planType);
+    const userPlan = this.userPlanRepository.create({
+      user,
+      plan,
+      startDate: new Date(),
+      endDate,
+      isSubscriptionActive: true,
+      usage: [],
+    });
+
+    // Create usages for plan features
+    for (const feature of plan.features) {
+      console.log("PLAN FEATURE: =============>: ", feature)
+      if (feature?.properties?.isUnlimited === true) continue;
+
+      const newUsage = this.userPlanUsageRepository.create({
+        planFeatureProperty: feature,
+        planFeaturePropertyId: feature.id,
+        usageCount: feature.properties?.limit ?? null,
+      });
+
+      userPlan.usage.push(newUsage);
+    }
+    console.log("AFTER CREATING PLAN USAGE: =============>: ", userPlan)
+    await this.userPlanRepository.save(userPlan);
+    user.userPlanId = userPlan.id;
+    const newuser = await this.userRepository.save(user);
+    console.log(newuser);
+    return userPlan;
   }
 }

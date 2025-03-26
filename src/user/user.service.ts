@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException, 
 import { FileStorage, Plan, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData, PlanTypeEnum } from '@types';
+import { ApiMessageDataPagination, ApiMessageData } from '@types';
 import { Repository, Brackets } from 'typeorm';
 import { GetUsersDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
@@ -43,51 +43,18 @@ export class UserService {
     const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
     if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
 
-    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
+    const userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
-    //    if (userPlan) {
     if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
-    //   userPlan.plan = plan;
-    //   userPlan.startDate = new Date();
-    //   userPlan.isSubscriptionActive = true;
-    // } else {
-    //   const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
-    //   userPlan = this.userPlanRepository.create({
-    //     user,
-    //     plan,
-    //     startDate: new Date(),
-    //     endDate,
-    //     isSubscriptionActive: true,
-    //     usage: [],
-    //   });
-    // }
 
-    // userPlan.usage = userPlan.usage || [];
-
-    // for (const feature of plan.features) {
-    //   if (feature?.properties?.isUnlimited === null) continue;
-
-    //   const newUsage = this.userPlanUsageRepository.create({
-    //     planFeatureProperty: feature,
-    //     planFeaturePropertyId: feature.id,
-    //     usageCount: feature.properties.limit || null,
-    //   });
-
-    //   userPlan.usage.push(newUsage);
-    // }
-
-    // await this.userPlanRepository.save(userPlan);
-    // user.userPlanId = userPlan.id;
-    // await this.userRepository.save(user);
-
-    const appURL = this.configService.get('APP_URL') || 'https://dev-api.healthytune.com';
+    const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
     const successURL = `${appURL}/home`;
     const cancelURL = `${appURL}/home`;
 
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
-        url: await this.stripeHelper.createCardSession({ userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL),
+        url: await this.stripeHelper.createPaymentSession({ planId: plan.id, userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL, plan.stripePriceId),
         userPlan,
       },
     };

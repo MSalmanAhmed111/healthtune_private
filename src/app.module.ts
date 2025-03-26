@@ -8,7 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './db/db-config';
 import { MacrosModule } from './macros/macros.module';
 import { TemplatesModule } from './templates/templates.module';
-import { ClerkClientProvider } from './common/providers';
+import { ClerkClientProvider, StripeClientProvider } from './common/providers';
 import { APP_GUARD } from '@nestjs/core';
 import { ClerkAuthGuard } from '@guards/auth.guard';
 import { ClerkWebhookModule } from './webhooks/clerk/clerk-webhook.module';
@@ -20,6 +20,7 @@ import { FileStorageModule } from './file-storage/file-storage.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { PlanModule } from './plan/plan.module';
+import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { PlanModule } from './plan/plan.module';
     MacrosModule,
     TemplatesModule,
     ClerkWebhookModule,
+    StripeWebhookModule,
     SettingModule,
     PatientModule,
     AppointmentModule,
@@ -46,6 +48,7 @@ import { PlanModule } from './plan/plan.module';
   providers: [
     AppService,
     ClerkClientProvider,
+    StripeClientProvider,
     {
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,

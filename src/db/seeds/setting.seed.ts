@@ -23,6 +23,12 @@ export class SettingSeeder {
         value: true,
         context: 'app/web',
       },
+      {
+        type: 'General',
+        name: 'Enable audio recording',
+        value: true,
+        context: 'app/web',
+      },
     ];
 
     for (const setting of settings) {
