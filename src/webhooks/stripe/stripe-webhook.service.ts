@@ -123,12 +123,13 @@ export class StripeWebhookService {
         const deletedSubscription = event.data.object as any;
         const user = await this.userRepository.findOne({
           where: { stripeCustomerId: deletedSubscription.customer },
-          relations: ['features']
+
         });
 
         // Get default plan (free tier)
         const defaultPlan = await this.planRepository.findOne({
           where: { name: SeedPlanNamesEnum.BASIC_PLAN },
+          relations: ['features']
         });
 
         if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
