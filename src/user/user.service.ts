@@ -2,13 +2,14 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException, 
 import { FileStorage, Plan, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData } from '@types';
+import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum } from '@types';
 import { Repository, Brackets } from 'typeorm';
 import { GetUsersDto, SelectPlanDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
 import { ConfigService } from '@nestjs/config';
+import { StripeWebhookService } from 'src/webhooks/stripe/stripe-webhook.service';
 
 @Injectable()
 export class UserService {
@@ -27,6 +28,7 @@ export class UserService {
     private readonly clerkClient: ClerkClient,
     private stripeHelper: StripeHelper,
     private configService: ConfigService,
+    private stripeWebhookServie: StripeWebhookService,
     private readonly fileStorageService: FileStorageService,
   ) { }
 
@@ -43,21 +45,36 @@ export class UserService {
 
     const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
     if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
-
-    const userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
+    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
     if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
 
-    const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
-    successURL = successURL || `${appURL}/home`;
-    cancelURL = cancelURL || `${appURL}/home`;
+    if (plan.name === SeedPlanNamesEnum.BASIC_PLAN) {
 
-    return {
-      message: SuccessResponseMessages.successGeneral,
-      data: {
-        url: await this.stripeHelper.createPaymentSession({ planId: plan.id, userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL, plan.stripePriceId),
-      },
-    };
+      if (user.stripeSubscriptiontId) await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
+      else {
+        userPlan = await this.stripeWebhookServie.createNewUserPlan(user, plan);
+      }
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: null,
+      };
+    } else {
+
+      const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
+      successURL = successURL || `${appURL}/home`;
+      cancelURL = cancelURL || `${appURL}/home`;
+
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: {
+          url: await this.stripeHelper.createPaymentSession({ planId: plan.id, userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL, plan.stripePriceId),
+          userPlan,
+        },
+      };
+    }
+
+
   }
 
   async updateCurrentUser(userId: number, updateCurrentUserDto: UpdateCurrentUserDto): Promise<ApiMessageData> {

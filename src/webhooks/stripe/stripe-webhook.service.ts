@@ -123,6 +123,7 @@ export class StripeWebhookService {
         const deletedSubscription = event.data.object as any;
         const user = await this.userRepository.findOne({
           where: { stripeCustomerId: deletedSubscription.customer },
+          relations: ['features']
         });
 
         // Get default plan (free tier)
@@ -143,7 +144,7 @@ export class StripeWebhookService {
     }
   }
 
-  private calculateEndDate(planType: PlanTypeEnum): Date | null {
+  calculateEndDate(planType: PlanTypeEnum): Date | null {
     const currentDate = new Date();
     switch (planType) {
       case PlanTypeEnum.MONTHLY:
@@ -163,7 +164,7 @@ export class StripeWebhookService {
     }
   }
 
-  private async renewUserPlan(userPlan: UserPlan, plan: Plan): Promise<UserPlan> {
+  async renewUserPlan(userPlan: UserPlan, plan: Plan): Promise<UserPlan> {
     const endDate = this.calculateEndDate(plan.planType);
     userPlan.endDate = endDate;
     userPlan.isSubscriptionActive = true;
@@ -173,7 +174,7 @@ export class StripeWebhookService {
     return this.userPlanRepository.save(userPlan);
   }
 
-  private async createNewUserPlan(user: User, plan: Plan): Promise<UserPlan> {
+  async createNewUserPlan(user: User, plan: Plan): Promise<UserPlan> {
     // Clean up existing plan
     const existingUserPlan = await this.userPlanRepository.findOne({
       where: { user: { id: user.id } },

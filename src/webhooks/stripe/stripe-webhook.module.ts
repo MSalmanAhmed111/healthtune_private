@@ -10,5 +10,6 @@ import { StripeWebhookService } from './stripe-webhook.service';
   imports: [TypeOrmModule.forFeature([User, UserPlan, Plan, UserPlanUsage, PlanFeature])],
   controllers: [StripeWebhookController],
   providers: [StripeWebhookService, ConfigService, StripeHelper],
+  exports: [StripeWebhookService]
 })
-export class StripeWebhookModule {}
+export class StripeWebhookModule { }

@@ -6,9 +6,10 @@ import { FileStorage, Plan, PlanFeature, PlanFeatureProperty, User, UserPlan, Us
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileStorageModule } from 'src/file-storage/file-storage.module';
 import { StripeHelper } from '@helpers/stripe.helper';
+import { StripeWebhookModule } from 'src/webhooks/stripe/stripe-webhook.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, FileStorage, Plan, PlanFeature, PlanFeatureProperty, UserPlan, UserPlanUsage]), FileStorageModule],
+  imports: [TypeOrmModule.forFeature([User, FileStorage, Plan, PlanFeature, PlanFeatureProperty, UserPlan, UserPlanUsage]), FileStorageModule, StripeWebhookModule],
   controllers: [UserController],
   providers: [UserService, ClerkClientProvider, StripeHelper],
   exports: [UserService],
