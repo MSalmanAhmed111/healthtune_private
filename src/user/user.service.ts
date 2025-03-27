@@ -4,7 +4,7 @@ import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, Plan
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData } from '@types';
 import { Repository, Brackets } from 'typeorm';
-import { GetUsersDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { GetUsersDto, SelectPlanDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -28,11 +28,12 @@ export class UserService {
     private stripeHelper: StripeHelper,
     private configService: ConfigService,
     private readonly fileStorageService: FileStorageService,
-  ) {}
+  ) { }
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
 
-  async selectPlanForUser(userId: number, planId: number): Promise<ApiMessageData> {
+  async selectPlanForUser(userId: number, planId: number, reqBody: SelectPlanDto): Promise<ApiMessageData> {
+    let { cancelURL, successURL } = reqBody;
     let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException(userErrorMessages.userNotExists);
 
@@ -48,14 +49,13 @@ export class UserService {
     if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
 
     const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
-    const successURL = `${appURL}/home`;
-    const cancelURL = `${appURL}/home`;
+    successURL = successURL || `${appURL}/home`;
+    cancelURL = cancelURL || `${appURL}/home`;
 
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
         url: await this.stripeHelper.createPaymentSession({ planId: plan.id, userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL, plan.stripePriceId),
-        userPlan,
       },
     };
   }
@@ -102,7 +102,18 @@ export class UserService {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
       if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
     }
-    return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
+    const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
+    if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
+      fetchedUser.userPlan.usage.forEach((usage) => {
+        const newUsage = {
+          featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
+          left: usage?.usageCount || null,
+          total: usage?.planFeatureProperty?.properties?.limit || null,
+        }
+        usageArray.push(newUsage);
+      });
+    }
+    return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } } };
   }
 
   // ? SEPERATE ADMIN APIS

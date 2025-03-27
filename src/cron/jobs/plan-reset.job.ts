@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import moment from 'moment-timezone';
 import { UserPlan, UserPlanUsage } from 'src/entity';
-import { PlanTypeEnum } from '@types';
+import { PlanTypeEnum, SeedPlanNamesEnum } from '@types';
 
 @Injectable()
 export class PlanResetJob {
@@ -23,7 +23,7 @@ export class PlanResetJob {
         const currentDate = moment().startOf('day').toDate();
 
         const userPlansToReset = await this.userPlanRepository.find({
-            where: { resetDate: currentDate, isSubscriptionActive: true },
+            where: { resetDate: currentDate, isSubscriptionActive: true, plan: { name: SeedPlanNamesEnum.BASIC_PLAN } },
             relations: ['plan', 'usage', 'usage.planFeatureProperty'],
         });
 

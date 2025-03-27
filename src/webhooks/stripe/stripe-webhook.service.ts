@@ -21,7 +21,7 @@ export class StripeWebhookService {
     @InjectRepository(PlanFeature)
     private readonly PlanFeatureRepository: Repository<PlanFeature>,
     private stripeHelper: StripeHelper,
-  ) {}
+  ) { }
 
   async checkOutWebhook(payload: any) {
     const payloadString = JSON.stringify(payload, null, 2);
@@ -51,7 +51,6 @@ export class StripeWebhookService {
         } else if (completedSession.mode === 'subscription' && completedSession.payment_status === 'paid') {
           // Handle new subscription
           const { userId, planId } = completedSession.metadata;
-          console.log({userId, planId})
           const user = await this.userRepository.findOne({ where: { id: userId } });
           user.stripeSubscriptiontId = completedSession.subscription
           await this.userRepository.save(user);
@@ -59,8 +58,6 @@ export class StripeWebhookService {
             where: { id: planId },
             relations: ['features'],
           });
-          console.log("USER===> : ", user)
-          console.log("PLAN===> : ", plan)
           if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
           await this.createNewUserPlan(user, plan);
         }
@@ -99,7 +96,13 @@ export class StripeWebhookService {
             relations: ['features'],
           });
 
-          if (plan) await this.renewUserPlan(user.userPlan, plan);
+          if (plan) {
+            // Ensure it's a renewal and not a first-time payment
+            const isFirstPayment = paidInvoice.billing_reason === 'subscription_create';
+            if (!isFirstPayment) {
+              await this.renewUserPlan(user.userPlan, plan);
+            }
+          }
         }
         break;
       }
@@ -183,7 +186,6 @@ export class StripeWebhookService {
       user.userPlanId = null;
       user = await this.userRepository.save(user);
       await this.userPlanRepository.delete({ id: existingUserPlan.id });
-      console.log("REMOVED USER PREVIOUS PLAN=============>: ", user)
     }
 
     // Create new plan
@@ -199,7 +201,6 @@ export class StripeWebhookService {
 
     // Create usages for plan features
     for (const feature of plan.features) {
-      console.log("PLAN FEATURE: =============>: ", feature)
       if (feature?.properties?.isUnlimited === true) continue;
 
       const newUsage = this.userPlanUsageRepository.create({
@@ -210,11 +211,9 @@ export class StripeWebhookService {
 
       userPlan.usage.push(newUsage);
     }
-    console.log("AFTER CREATING PLAN USAGE: =============>: ", userPlan)
     await this.userPlanRepository.save(userPlan);
     user.userPlanId = userPlan.id;
     const newuser = await this.userRepository.save(user);
-    console.log(newuser);
     return userPlan;
   }
 }
