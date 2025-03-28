@@ -51,7 +51,11 @@ export class UserService {
 
     if (plan.name === SeedPlanNamesEnum.BASIC_PLAN) {
 
-      if (user.stripeSubscriptiontId) await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
+      if (user.stripeSubscriptiontId) {
+        await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
+        user.stripeSubscriptiontId = null;
+        user = await this.userRepository.save(user);
+      }
       else {
         userPlan = await this.stripeWebhookServie.createNewUserPlan(user, plan);
       }
@@ -73,7 +77,22 @@ export class UserService {
         },
       };
     }
+  }
 
+  async cancelSubscription(userId: number): Promise<ApiMessageData> {
+    let user = await this.userRepository.findOne({ where: { id: userId } });
+    const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
+    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
+    if (userPlan.planId === plan.id) throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
+    await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
+    // user.stripeSubscriptiontId = null;
+    // user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
+    // userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: null,
+    };
 
   }
 

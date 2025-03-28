@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Not, Repository } from 'typeorm';
 import moment from 'moment-timezone';
-import { UserPlan, UserPlanUsage } from 'src/entity';
+import { Plan, UserPlan, UserPlanUsage } from 'src/entity';
 import { PlanTypeEnum, SeedPlanNamesEnum } from '@types';
+import { PlanErrorMessages } from '@messages';
+import { StripeWebhookService } from 'src/webhooks/stripe/stripe-webhook.service';
 
 @Injectable()
 export class PlanResetJob {
@@ -14,16 +16,22 @@ export class PlanResetJob {
 
         @InjectRepository(UserPlanUsage)
         private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+
+        @InjectRepository(Plan)
+        private readonly planRepository: Repository<Plan>,
+        private stripeWebhookServie: StripeWebhookService,
     ) { }
 
     @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-    async resetPlanUsage(): Promise<void> {
+    async resetFreePlanUsage(): Promise<void> {
         console.log('Starting plan usage reset job...');
 
-        const currentDate = moment().startOf('day').toDate();
+        const currentDate = moment().toDate();
+        const currentStartDate = moment().startOf('day').toDate();
+        const currentEndDate = moment().startOf('day').toDate();
 
         const userPlansToReset = await this.userPlanRepository.find({
-            where: { resetDate: currentDate, isSubscriptionActive: true, plan: { name: SeedPlanNamesEnum.BASIC_PLAN } },
+            where: { resetDate: Between(currentStartDate, currentEndDate), isSubscriptionActive: true, plan: { name: SeedPlanNamesEnum.BASIC_PLAN } },
             relations: ['plan', 'usage', 'usage.planFeatureProperty'],
         });
 
@@ -46,5 +54,36 @@ export class PlanResetJob {
         }
 
         console.log(`Plan usage reset completed for ${userPlansToReset.length} users.`);
+    }
+
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    async updatePlan(): Promise<void> {
+        console.log('Starting update plan job...');
+
+        const currentStartDate = moment().startOf('day').toDate();
+        const currentEndDate = moment().startOf('day').toDate();
+
+        const defaultPlan = await this.planRepository.findOne({
+            where: { name: SeedPlanNamesEnum.BASIC_PLAN },
+            relations: ['features']
+        });
+        if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
+
+        const userPlansToUpdate = await this.userPlanRepository.find({
+            where: { resetDate: Between(currentStartDate, currentEndDate), isSubscriptionActive: false, user: { stripeSubscriptiontId: null }, planId: Not(defaultPlan.id) },
+            relations: ['user', 'plan', 'usage', 'usage.planFeatureProperty'],
+        });
+
+        if (userPlansToUpdate.length === 0) {
+            console.log('No user plans to update today.');
+            return;
+        }
+
+        for (const userPlan of userPlansToUpdate) {
+            await this.stripeWebhookServie.createNewUserPlan(userPlan.user, defaultPlan);
+
+        }
+
+        console.log(`Plan update completed for ${userPlansToUpdate.length} users.`);
     }
 }

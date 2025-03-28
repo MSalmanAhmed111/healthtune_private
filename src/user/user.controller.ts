@@ -9,7 +9,7 @@ import { ValidateId } from '@pipes/validate-id.pipe';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Get('/')
   @HttpCode(HttpStatus.OK)
@@ -30,5 +30,13 @@ export class UserController {
   @SwaggerApiResponse('Update current user')
   async selectPlanForUser(@Param('planId', ValidateId) planId: number, @Body() reqBody: SelectPlanDto, @Req() req: Request) {
     return await this.userService.selectPlanForUser(+req.user.id, planId, reqBody);
+  }
+
+
+  @Put('/plan/cancel-subscription')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Cancel current user active paid subscription')
+  async cancelSubscription(@Req() req: Request) {
+    return await this.userService.cancelSubscription(+req.user.id);
   }
 }
