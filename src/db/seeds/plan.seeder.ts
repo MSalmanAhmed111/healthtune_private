@@ -60,8 +60,8 @@ export class PlanSeeder {
         stripePriceId: null,
         features: [
           {
-            displayName: '5 Sessions Per Month',
-            properties: { isUnlimited: false, limit: 5, limitType: FeatureLimitTypeEnum.MONTHLY },
+            displayName: '2 Sessions Per Month',
+            properties: { isUnlimited: false, limit: 2, limitType: FeatureLimitTypeEnum.MONTHLY },
             feature: sessionCreationPlanFeatures,
           },
         ],
@@ -146,13 +146,13 @@ export class PlanSeeder {
         }
         continue;
       } else if ((action as ActionType) === ActionType.Update && plan) {
-        const stripeProductId = plan.stripeProductId || null,
-          stripePriceId = plan.stripePriceId || null;
-        if (!stripeProductId) {
+        planData.stripeProductId = plan.stripeProductId || null,
+        planData.stripePriceId = plan.stripePriceId || null;
+        if (planData.stripeProductId === null) {
           const newStripeProduct = await this.stripeHelper.createProduct(name, description);
           planData.stripeProductId = newStripeProduct.id;
         }
-        if (!stripePriceId) {
+        if (planData.stripePriceId === null) {
           const newStripePrice = await this.stripeHelper.createProductPrice(planData.stripeProductId, +price, planType);
           planData.stripePriceId = newStripePrice.id;
         }
@@ -162,8 +162,6 @@ export class PlanSeeder {
           const existingFeature = await planFeaturePropertyRepository.findOne({
             where: { plan: { id: plan.id }, feature: { name: feature.feature.name } },
           });
-
-          console.log({ existingFeature });
 
           if (existingFeature) {
             planData.features[i] = { ...existingFeature, ...feature };

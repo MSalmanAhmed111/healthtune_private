@@ -53,8 +53,6 @@ export class UserService {
 
       if (user.stripeSubscriptiontId) {
         await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
-        user.stripeSubscriptiontId = null;
-        user = await this.userRepository.save(user);
       }
       else {
         userPlan = await this.stripeWebhookServie.createNewUserPlan(user, plan);
@@ -68,7 +66,7 @@ export class UserService {
       const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
       successURL = successURL || `${appURL}/home`;
       cancelURL = cancelURL || `${appURL}/home`;
-
+      console.log({plan})
       return {
         message: SuccessResponseMessages.successGeneral,
         data: {
