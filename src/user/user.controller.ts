@@ -25,6 +25,13 @@ export class UserController {
     return await this.userService.updateCurrentUser(+req.user.id, reqBody);
   }
 
+  @Put('/plan/cancel-subscription')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Cancel current user active paid subscription')
+  async cancelSubscription(@Req() req: Request) {
+    return await this.userService.cancelSubscription(+req.user.id);
+  }
+
   @Put('/plan/:planId')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update current user')
@@ -32,11 +39,4 @@ export class UserController {
     return await this.userService.selectPlanForUser(+req.user.id, planId, reqBody);
   }
 
-
-  @Put('/plan/cancel-subscription')
-  @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Cancel current user active paid subscription')
-  async cancelSubscription(@Req() req: Request) {
-    return await this.userService.cancelSubscription(+req.user.id);
-  }
 }
