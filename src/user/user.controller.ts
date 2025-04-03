@@ -1,10 +1,11 @@
 import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
-import { SelectPlanDto, UpdateCurrentUserDto } from '@dtos';
+import { RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ValidateId } from '@pipes/validate-id.pipe';
+import { ApiMessageData } from '@types';
 
 @ApiTags('User')
 @Controller('user')
@@ -35,8 +36,22 @@ export class UserController {
   @Put('/plan/:planId')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update current user')
-  async selectPlanForUser(@Param('planId', ValidateId) planId: number, @Body() reqBody: SelectPlanDto, @Req() req: Request) {
+  async selectPlanForUser(@Param('planId', ValidateId) planId: number, @Body() reqBody: RedirectionUrlDto, @Req() req: Request) {
     return await this.userService.selectPlanForUser(+req.user.id, planId, reqBody);
+  }
+
+  @Get("/card")
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user card details')
+  async getUserCardDetails(@Req() req: Request): Promise<ApiMessageData> {
+    return await this.userService.getUserCardDetails(+req.user.id);
+  }
+
+  @Put("/card")
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Update current user card details')
+  async addUpdateCard(@Req() req: Request, @Body() reqBody: RedirectionUrlDto): Promise<ApiMessageData> {
+    return await this.userService.addUpdateCard(+req.user.id, reqBody);
   }
 
 }

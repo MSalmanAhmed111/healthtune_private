@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { FileStorage, Plan, User, UserPlan, UserPlanUsage } from '@entities';
+import { FileStorage, Plan, SubscriptionHistory, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum } from '@types';
+import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage } from '@types';
 import { Repository, Brackets } from 'typeorm';
-import { GetUsersDto, SelectPlanDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { GetUsersDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -20,8 +20,8 @@ export class UserService {
     private readonly planRepository: Repository<Plan>,
     @InjectRepository(UserPlan)
     private readonly userPlanRepository: Repository<UserPlan>,
-    @InjectRepository(UserPlanUsage)
-    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+    @InjectRepository(SubscriptionHistory)
+    private readonly subscriptionHistoryRepository: Repository<SubscriptionHistory>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     @Inject('ClerkClient')
@@ -34,7 +34,7 @@ export class UserService {
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
 
-  async selectPlanForUser(userId: number, planId: number, reqBody: SelectPlanDto): Promise<ApiMessageData> {
+  async selectPlanForUser(userId: number, planId: number, reqBody: RedirectionUrlDto): Promise<ApiMessageData> {
     let { cancelURL, successURL } = reqBody;
     let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException(userErrorMessages.userNotExists);
@@ -66,7 +66,7 @@ export class UserService {
       const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
       successURL = successURL || `${appURL}/home`;
       cancelURL = cancelURL || `${appURL}/home`;
-      console.log({plan})
+
       return {
         message: SuccessResponseMessages.successGeneral,
         data: {
@@ -150,6 +150,48 @@ export class UserService {
     return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } } };
   }
 
+  async getUserCardDetails(userId: number): Promise<ApiMessageData> {
+    let user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: await this.stripeHelper.retrieveCards(user.stripeCustomerId)
+    };
+  }
+
+  async deleteUserCardDetails(userId: number): Promise<ApiMessage> {
+    let user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
+    await this.stripeHelper.deleteCard(user.stripeCustomerId)
+    return {
+      message: SuccessResponseMessages.successGeneral,
+    };
+  }
+
+  // Add update card -> Generates card link
+  async addUpdateCard(userId: number, stripeAccessDto: RedirectionUrlDto): Promise<ApiMessageData> {
+    const { successURL, cancelURL } = stripeAccessDto;
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
+
+    const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
+    const finalSuccessURL = successURL || `${appURL}/home`;
+    const finalCancelURL = cancelURL || `${appURL}/home`;
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        url: await this.stripeHelper.createCardSession(
+          { userId },
+          user.stripeCustomerId,
+          finalSuccessURL,
+          finalCancelURL
+        ),
+      },
+    };
+  }
+
   // ? SEPERATE ADMIN APIS
 
   async getUsers(getUsersDto: GetUsersDto): Promise<ApiMessageDataPagination> {
@@ -231,4 +273,6 @@ export class UserService {
     }
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }
+
+
 }

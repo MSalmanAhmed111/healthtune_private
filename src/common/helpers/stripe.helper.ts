@@ -119,6 +119,7 @@ export class StripeHelper {
     try {
       const paymentMethods = await this.stripe.customers.listPaymentMethods(stripeCustomerId, { type: 'card' });
       if (!paymentMethods) return undefined;
+      console.log({paymentMethods})
       let userCards: UserCardDetails[] = [];
       if (paymentMethods?.data.length) {
         userCards = paymentMethods.data.map((obj) => ({

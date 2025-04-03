@@ -1,4 +1,4 @@
-import { Patient, Session, UserPlan } from '@entities';
+import { Patient, Session, SubscriptionHistory, UserPlan } from '@entities';
 import { fileObject } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 
@@ -76,4 +76,7 @@ export class User {
 
   @Column({ type: 'varchar', nullable: true, default: null })
   stripeSubscriptiontId: string;
+
+  @OneToMany(() => SubscriptionHistory, (subscriptionHistory) => subscriptionHistory.user, { cascade: true, onDelete: 'CASCADE' })
+  subscriptionHistory: SubscriptionHistory[];
 }

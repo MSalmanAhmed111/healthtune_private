@@ -1,9 +1,9 @@
-import { User, Plan, UserPlan, UserPlanUsage, PlanFeature } from '@entities';
+import { User, Plan, UserPlan, UserPlanUsage, PlanFeature, SubscriptionHistory } from '@entities';
 import { StripeHelper } from '@helpers/stripe.helper';
 import { PlanErrorMessages } from '@messages';
 import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { PlanTypeEnum, SeedPlanNamesEnum } from '@types';
+import { PaymentMethodEnum, PlanTypeEnum, SeedPlanNamesEnum, SubscriptionStatusEnum } from '@types';
 import Stripe from 'stripe';
 import { Repository } from 'typeorm';
 
@@ -18,8 +18,8 @@ export class StripeWebhookService {
     private readonly userPlanRepository: Repository<UserPlan>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
-    @InjectRepository(PlanFeature)
-    private readonly PlanFeatureRepository: Repository<PlanFeature>,
+    @InjectRepository(SubscriptionHistory)
+    private readonly subscriptionHistoryRepository: Repository<SubscriptionHistory>,
     private stripeHelper: StripeHelper,
   ) { }
 
@@ -43,7 +43,7 @@ export class StripeWebhookService {
 
           if (user.cardAdded) {
             const userCards = await this.stripeHelper.retrieveCards(user.stripeCustomerId);
-            if (userCards.length) await this.stripeHelper.deleteCard(userCards[0].id);
+            if (userCards.length) await this.stripeHelper.deleteCard(userCards[userCards.length - 1].id);
           }
 
           user.cardAdded = true;
@@ -60,6 +60,17 @@ export class StripeWebhookService {
           });
           if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
           await this.createNewUserPlan(user, plan);
+          await this.subscriptionHistoryRepository.save({
+            user,
+            plan,
+            subscriptionDate: new Date(),
+            endDate: this.calculateEndDate(plan.planType),
+            isActive: true,
+            status: SubscriptionStatusEnum.SUBSCRIBED,
+            paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+            amountPaid: parseFloat(plan.price),
+            transactionId: completedSession.id,
+          });
         }
         break;
       }
@@ -79,7 +90,20 @@ export class StripeWebhookService {
             relations: ['user', 'usage', 'usage.planFeatureProperty'],
           });
 
-          if (userPlan) await this.renewUserPlan(userPlan, plan);
+          if (userPlan) {
+            await this.renewUserPlan(userPlan, plan);
+            await this.subscriptionHistoryRepository.save({
+              userId,
+              plan,
+              subscriptionDate: new Date(),
+              endDate: this.calculateEndDate(plan.planType),
+              isActive: true,
+              status: SubscriptionStatusEnum.RENEWED,
+              paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+              amountPaid: parseFloat(plan.price),
+              transactionId: succeededSession.id,
+            });
+          }
         }
         break;
       }
@@ -101,6 +125,17 @@ export class StripeWebhookService {
             const isFirstPayment = paidInvoice.billing_reason === 'subscription_create';
             if (!isFirstPayment) {
               await this.renewUserPlan(user.userPlan, plan);
+              await this.subscriptionHistoryRepository.save({
+                user,
+                plan,
+                subscriptionDate: new Date(),
+                endDate: this.calculateEndDate(plan.planType),
+                isActive: true,
+                status: SubscriptionStatusEnum.RENEWED,
+                paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+                amountPaid: parseFloat(plan.price),
+                transactionId: paidInvoice.id,
+              });
             }
           }
         }
@@ -110,11 +145,23 @@ export class StripeWebhookService {
         const failedInvoice = event.data.object as any;
         const user = await this.userRepository.findOne({
           where: { stripeCustomerId: failedInvoice.customer },
+          relations: ['userPlan', 'userPlan.plan'],
         });
 
         if (user?.userPlanId) {
           await this.userPlanRepository.update(user.userPlanId, {
             isSubscriptionActive: false,
+          });
+          await this.subscriptionHistoryRepository.save({
+            user,
+            planId: user.userPlan.planId,
+            subscriptionDate: new Date(),
+            endDate: this.calculateEndDate(user.userPlan.plan.planType),
+            isActive: false,
+            status: SubscriptionStatusEnum.FAILED,
+            paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+            amountPaid: parseFloat(user.userPlan.plan.price),
+            transactionId: failedInvoice.id,
           });
         }
         break;
@@ -140,6 +187,17 @@ export class StripeWebhookService {
         user.stripeSubscriptiontId = null;
         user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
         userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
+        await this.subscriptionHistoryRepository.save({
+          user,
+          planId: user.userPlan.planId,
+          subscriptionDate: new Date(),
+          endDate: this.calculateEndDate(user.userPlan.plan.planType),
+          isActive: false,
+          status: SubscriptionStatusEnum.CANCELLED,
+          paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+          amountPaid: parseFloat(user.userPlan.plan.price),
+          transactionId: deletedSubscription.id,
+        });
         break;
       }
       default:
