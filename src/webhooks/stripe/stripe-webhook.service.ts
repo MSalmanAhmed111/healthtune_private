@@ -181,8 +181,8 @@ export class StripeWebhookService {
 
         // if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
         // await this.createNewUserPlan(user, defaultPlan);
-        let user = await this.userRepository.findOne({ where: { stripeCustomerId: deletedSubscription.customer } });
-        let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: user.id } }, relations: ['usage'] });
+        let user = await this.userRepository.findOne({ where: { stripeCustomerId: deletedSubscription.customer }, relations: ['userPlan', 'userPlan.plan'], });
+        let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: user.id } }, relations: ['usage', 'plan'] });
 
         user.stripeSubscriptiontId = null;
         user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
