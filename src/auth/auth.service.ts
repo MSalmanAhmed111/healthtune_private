@@ -11,7 +11,7 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @Inject('ClerkClient')
     private readonly clerkClient: ClerkClient,
-  ) {}
+  ) { }
 
   async generateToken(userId: number) {
     try {
@@ -34,10 +34,17 @@ export class AuthService {
         const token = await this.clerkClient.signInTokens.createSignInToken({ userId: clerkUserId, expiresInSeconds: 220000 });
         return { token };
       }
+      try {
+        // Fetch the token for the existing session
+        const token = await this.clerkClient.sessions.getToken(sessionId, 'Standard');
+        return { token };
+      } catch (err) {
+        // Session exists but can't fetch token (e.g., expired), fallback to generating new token
+        console.warn('Failed to fetch token from existing session, generating new token.');
+        const token = await this.clerkClient.signInTokens.createSignInToken({ userId: clerkUserId, expiresInSeconds: 220000 });
+        return { token };
+      }
 
-      // Fetch the token for the existing session
-      const token = await this.clerkClient.sessions.getToken(sessionId, 'Standard');
-      return { token };
     } catch (error) {
       throw new Error(`Failed to generate token: ${error}`);
     }

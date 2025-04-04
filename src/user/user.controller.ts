@@ -1,7 +1,7 @@
-import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param, Query } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
-import { RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
+import { PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ValidateId } from '@pipes/validate-id.pipe';
@@ -31,6 +31,13 @@ export class UserController {
   @SwaggerApiResponse('Cancel current user active paid subscription')
   async cancelSubscription(@Req() req: Request) {
     return await this.userService.cancelSubscription(+req.user.id);
+  }
+
+  @Get("/plan/subscription-history")
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user subscription history')
+  async getUserSubscriptionHistory(@Req() req: Request, @Query() queryParams: PaginationDto): Promise<ApiMessageData> {
+    return await this.userService.getUserSubscriptionHistory(+req.user.id, queryParams);
   }
 
   @Put('/plan/:planId')

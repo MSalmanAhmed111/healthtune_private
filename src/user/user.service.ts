@@ -4,7 +4,7 @@ import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, Plan
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage } from '@types';
 import { Repository, Brackets } from 'typeorm';
-import { GetUsersDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { GetUsersDto, PaginationDto, PaginationQueryDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -148,6 +148,15 @@ export class UserService {
       });
     }
     return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } } };
+  }
+
+  async getUserSubscriptionHistory(userId: number, paginationDto: PaginationDto): Promise<ApiMessageDataPagination> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+    let [userSubscriptionHistory, total] = await this.subscriptionHistoryRepository.findAndCount({ where: { userId }, take: limit, skip, order: { id: 'DESC' }, relations: ['plan'] });
+    const lastPage = Math.ceil(total / limit);
+    return { message: SuccessResponseMessages.successGeneral, data: userSubscriptionHistory, page: page, total: total, lastPage: lastPage };
+
   }
 
   async getUserCardDetails(userId: number): Promise<ApiMessageData> {
