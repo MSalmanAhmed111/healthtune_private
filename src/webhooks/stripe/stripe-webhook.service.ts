@@ -189,13 +189,13 @@ export class StripeWebhookService {
         userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
         await this.subscriptionHistoryRepository.save({
           user,
-          planId: user.userPlan.planId,
+          planId: userPlan.planId,
           subscriptionDate: new Date(),
-          endDate: this.calculateEndDate(user.userPlan.plan.planType),
+          endDate: this.calculateEndDate(userPlan.plan.planType),
           isActive: false,
           status: SubscriptionStatusEnum.CANCELLED,
           paymentMethod: PaymentMethodEnum.CREDIT_CARD,
-          amountPaid: parseFloat(user.userPlan.plan.price),
+          amountPaid: parseFloat(userPlan.plan.price),
           transactionId: deletedSubscription.id,
         });
         break;
