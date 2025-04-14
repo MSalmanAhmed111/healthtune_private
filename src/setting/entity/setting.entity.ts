@@ -9,7 +9,7 @@ export class Setting {
   @Column({ type: 'varchar', length: 100 })
   type: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100 })
   name: string;
 
   @Column({ type: 'jsonb' })
