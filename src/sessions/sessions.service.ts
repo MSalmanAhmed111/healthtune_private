@@ -50,7 +50,7 @@ export class SessionService {
       await this.userPlanUsageRepository.save(usage);
     }
 
-    const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records' } });
+    const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
     if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
 
     if (patientId) {

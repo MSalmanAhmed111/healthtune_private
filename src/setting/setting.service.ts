@@ -14,17 +14,17 @@ export class SettingService {
     private readonly settingRepository: Repository<Setting>,
   ) {}
 
-  async getSettings(): Promise<ApiMessageData> {
-    const fetchedSetting = await this.settingRepository.find()
+  async getSettings(userId: number): Promise<ApiMessageData> {
+    const fetchedSetting = await this.settingRepository.find({ where: { userId } });
     return { message: SuccessResponseMessages.successGeneral, data: fetchedSetting };
   }
 
-  async updateSetting(updateSettingsDto: UpdateSettingsDto): Promise<ApiMessageData> {
+  async updateSetting(updateSettingsDto: UpdateSettingsDto, userId: number): Promise<ApiMessageData> {
     const { settings } = updateSettingsDto;
     const settingsToBeUpdated = [];
     for (const elem of settings) {
       const { id, value, name } = elem;
-      const fetchedSetting = await this.settingRepository.findOne({ where: { id, name }, order: { id: 'ASC' } });
+      const fetchedSetting = await this.settingRepository.findOne({ where: { id, name, userId }, order: { id: 'ASC' } });
       if (!fetchedSetting) throw new NotFoundException(SettingErrorMessages.settingsNotExists);
       fetchedSetting.value = value;
       settingsToBeUpdated.push(fetchedSetting);

@@ -1,7 +1,7 @@
 import { Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Plan, User, UserPlan, UserPlanUsage } from '@entities';
+import { Plan, Setting, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages } from '@messages';
 import { ApiMessageData, PlanTypeEnum, SeedPlanNamesEnum } from '@types';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -16,6 +16,8 @@ export class ClerkWebhookService {
     private readonly planRepository: Repository<Plan>,
     @InjectRepository(UserPlan)
     private readonly userPlanRepository: Repository<UserPlan>,
+    @InjectRepository(Setting)
+    private readonly settingRepository: Repository<Setting>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
     private stripeHelper: StripeHelper,
@@ -23,9 +25,35 @@ export class ClerkWebhookService {
 
   async syncUser(reqBody): Promise<ApiMessageData> {
     const { id, email_addresses, first_name, last_name, image_url, public_metadata, username, primary_email_address_id, private_metadata, unsafe_metadata } = reqBody;
-    console.log('reqBody: ', reqBody);
     const email = email_addresses[0].email_address;
-    let user = await this.userRepository.findOne({ where: [{ clerkUserId: id }, { email }] });
+    let user = await this.userRepository.findOne({ where: [{ clerkUserId: id }, { email }], relations: ['settings'] });
+
+    const settings = [
+      {
+        type: 'General',
+        name: 'Language',
+        value: 'English',
+        context: 'app/web',
+        isGlobal: false,
+        userId: user?.id,
+      },
+      {
+        type: 'General',
+        name: 'Enable patient records',
+        value: true,
+        context: 'app/web',
+        isGlobal: false,
+        userId: user?.id,
+      },
+      {
+        type: 'General',
+        name: 'Enable audio recording',
+        value: true,
+        context: 'app/web',
+        isGlobal: false,
+        userId: user?.id,
+      },
+    ];
 
     if (user) {
       user.firstName = first_name ?? user.firstName;
@@ -36,9 +64,15 @@ export class ClerkWebhookService {
       user.privateMetadata = private_metadata ?? user.privateMetadata;
       user.unsafeMetadata = unsafe_metadata ?? user.unsafeMetadata;
 
+      // ===> to be removed later (using to sync existing user stripe customer ids)
       if (!user.stripeCustomerId) {
         user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
         user = await this.userRepository.save(user);
+      }
+
+      // ===> to be removed later (using to sync existing user settings)
+      if (!user.settings) {
+        await this.settingRepository.save(settings);
       }
       return { message: SuccessResponseMessages.successGeneral, data: user };
     } else {
@@ -55,7 +89,9 @@ export class ClerkWebhookService {
         primaryEmailAddressId: primary_email_address_id,
       });
       user = await this.userRepository.save(user);
-      if (!user.stripeCustomerId) (user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`)), (user = await this.userRepository.save(user));
+      user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
+      await this.settingRepository.save(settings.map((setting) => ({ ...setting, userId: user.id })));
+      user = await this.userRepository.save(user);
     }
     const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
     if (!plan) return { message: 'User Created, but Unable to create default plan for user as no basic plan found.', data: user };
@@ -72,7 +108,6 @@ export class ClerkWebhookService {
     });
 
     for (const feature of plan.features) {
-      console.log({ feature });
       if (feature?.properties?.isUnlimited === null) continue;
 
       const newUsage = this.userPlanUsageRepository.create({
@@ -83,7 +118,6 @@ export class ClerkWebhookService {
 
       userPlan.usage.push(newUsage);
     }
-    console.log({ userPlan });
     userPlan = await this.userPlanRepository.save(userPlan);
     user.userPlanId = userPlan.id;
     await this.userRepository.save(user);
