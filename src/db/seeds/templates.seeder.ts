@@ -9,7 +9,7 @@ export class TemplateSeeder {
       Create = 'Create',
     }
 
-    const action: ActionType = ActionType.Create;
+    const action: ActionType = ActionType.Update;
 
     const dataSource = new DataSource(dataSourceOptions as DataSourceOptions);
     await dataSource.initialize();

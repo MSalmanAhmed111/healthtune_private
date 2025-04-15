@@ -21,6 +21,7 @@ import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { PlanModule } from './plan/plan.module';
 import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
+import { EDocumentsModule } from './e-forms/e-forms.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
     AuthModule,
     AdminModule,
     PlanModule,
+    EDocumentsModule
   ],
   controllers: [AppController],
   providers: [

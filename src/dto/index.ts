@@ -10,3 +10,4 @@ export * from 'src/patient/dto';
 export * from 'src/appointment/dto';
 export * from 'src/file-storage/dto';
 export * from "src/plan/dto";
+export * from 'src/e-forms/dto';

@@ -9,3 +9,4 @@ export * from 'src/patient/messages';
 export * from 'src/appointment/messages';
 export * from 'src/file-storage/messages';
 export * from 'src/plan/messages';
+export * from 'src/e-forms/messages';
