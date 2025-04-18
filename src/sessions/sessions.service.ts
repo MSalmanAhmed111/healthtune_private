@@ -7,6 +7,7 @@ import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, Get
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
+import moment from 'moment';
 
 @Injectable()
 export class SessionService {
@@ -201,24 +202,6 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
-  async getSessionStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
-    let { startDate, endDate } = reqQueryParams;
-    startDate = startDate ? new Date(startDate) : new Date('2020-01-01T00:00:00.000Z');
-    endDate = endDate ? new Date(endDate) : new Date();
 
-    let where: any = userId ? { userId, createdAt: Between(startDate, endDate) } : { createdAt: Between(startDate, endDate) };
-    const sessionCount = await this.sessionRepository.count({ where });
 
-    where = userId ? { userId, updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED } : { updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED };
-    const sessionCompletedCount = await this.sessionRepository.count({
-      where: { userId, updatedAt: Between(startDate, endDate), status: SessionStatusEnum.COMPLETED },
-    });
-
-    where = userId ? { userId, createdAt: Between(startDate, endDate) } : { createdAt: Between(startDate, endDate) };
-    const sessionDurationAvg = await this.sessionRepository.average('duration', { userId, createdAt: Between(startDate, endDate) });
-    return {
-      message: SuccessResponseMessages.successGeneral,
-      data: { sessionCount, sessionCompletedCount, sessionDurationAvg },
-    };
-  }
 }

@@ -12,12 +12,6 @@ import { Request } from 'express';
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
-  @Get('/stats')
-  @HttpCode(HttpStatus.OK)
-  @SwaggerApiResponse('Get session stats')
-  async getSessionStats(@Query() queryParams: GetSessionStatsDto) {
-    return await this.sessionService.getSessionStats(queryParams, queryParams.userId);
-  }
 
   @Post('/')
   @HttpCode(HttpStatus.CREATED)

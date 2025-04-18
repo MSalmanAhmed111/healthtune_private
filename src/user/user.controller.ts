@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param, Query } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
-import { PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
+import { GetSessionStatsDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ValidateId } from '@pipes/validate-id.pipe';
@@ -11,6 +11,21 @@ import { ApiMessageData } from '@types';
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) { }
+
+
+  @Get('/stats')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get session stats')
+  async getUserStats(@Query() queryParams: GetSessionStatsDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.userService.getUserStats(queryParams, +req.user.id);
+  }
+
+  @Get('/stats-graph')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get session stats')
+  async getUserStatsGraph(@Query() queryParams: GetSessionStatsDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.userService.getUserStatsGraph(queryParams, +req.user.id);
+  }
 
   @Get('/')
   @HttpCode(HttpStatus.OK)

@@ -1,15 +1,16 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { FileStorage, Plan, SubscriptionHistory, User, UserPlan, UserPlanUsage } from '@entities';
+import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage } from '@types';
-import { Repository, Brackets } from 'typeorm';
-import { GetUsersDto, PaginationDto, PaginationQueryDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum } from '@types';
+import { Repository, Brackets, Between } from 'typeorm';
+import { GetSessionStatsDto, GetUsersDto, PaginationDto, PaginationQueryDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
 import { ConfigService } from '@nestjs/config';
 import { StripeWebhookService } from 'src/webhooks/stripe/stripe-webhook.service';
+import moment from 'moment';
 
 @Injectable()
 export class UserService {
@@ -24,6 +25,10 @@ export class UserService {
     private readonly subscriptionHistoryRepository: Repository<SubscriptionHistory>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
+    @InjectRepository(Appointment)
+    private readonly appointmentRepository: Repository<Appointment>,
+    @InjectRepository(Session)
+    private readonly sessionRepository: Repository<Session>,
     @Inject('ClerkClient')
     private readonly clerkClient: ClerkClient,
     private stripeHelper: StripeHelper,
@@ -283,5 +288,147 @@ export class UserService {
     return { message: SuccessResponseMessages.successGeneral, data: fetchedUser };
   }
 
+  async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
+    let { startDate, endDate } = reqQueryParams;
 
+    const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
+    const end = endDate ? new Date(endDate) : new Date();
+    if (reqQueryParams.userId) userId = reqQueryParams.userId;
+    // Total Sessions
+    const baseWhere: any = {
+      ...(userId && { userId }),
+      createdAt: Between(start, end),
+    };
+    const sessionCount = await this.sessionRepository.count({ where: baseWhere });
+
+    // Completed Sessions
+    const completedWhere: any = {
+      ...(userId && { userId }),
+      updatedAt: Between(start, end),
+      status: SessionStatusEnum.COMPLETED,
+    };
+    const sessionCompletedCount = await this.sessionRepository.count({ where: completedWhere });
+
+    // Total Duration
+    const totalDurationQuery = this.sessionRepository
+      .createQueryBuilder('session')
+      .select('SUM(session.duration)', 'total')
+      .where('session.createdAt BETWEEN :start AND :end', { start, end });
+
+    if (userId) totalDurationQuery.andWhere('session.userId = :userId', { userId });
+
+    const totalDurationResult = await totalDurationQuery.getRawOne();
+    const sessionTotalDuration = parseFloat(totalDurationResult.total) || 0;
+
+    // Average Duration
+    const avgDuration = sessionCount ? (sessionTotalDuration / sessionCount).toFixed(2) : 0;
+
+    // Appointments Today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayWhere: any = {
+      ...(userId && { userId }),
+      createdAt: Between(todayStart, todayEnd),
+    };
+
+    const todayAppointments = await this.sessionRepository.count({ where: todayWhere });
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        sessionCount,
+        sessionCompletedCount,
+        sessionTotalDuration,
+        sessionDurationAvg: avgDuration,
+        todayAppointments,
+      },
+    };
+  }
+
+
+  async getUserStatsGraph(reqQueryParams: GetSessionStatsDto, userId?: number): Promise<ApiMessageData> {
+    let { startDate, endDate, orderWise, type } = reqQueryParams;
+    type = type || 'sessionCount';
+
+    const start = moment(startDate || '2020-01-01').startOf('day');
+    const end = moment(endDate || new Date()).endOf('day');
+    const diffInDays = end.diff(start, 'days');
+    const diffInMonths = end.diff(start, 'months');
+
+    if (!orderWise) {
+      if (diffInDays <= 31) orderWise = 'daily';
+      else if (diffInMonths <= 2) orderWise = 'weekly';
+      else if (diffInMonths <= 12) orderWise = 'monthly';
+      else orderWise = 'yearly';
+    }
+
+    const result = [];
+    let current = moment(start);
+
+    while (current.isSameOrBefore(end)) {
+      let label: string;
+      let rangeStart = moment(current);
+      let rangeEnd;
+
+      switch (orderWise) {
+        case 'daily':
+          label = rangeStart.format('YYYY-MM-DD');
+          rangeEnd = moment(rangeStart).endOf('day');
+          current.add(1, 'day');
+          break;
+        case 'weekly': {
+          const weekIndex = Math.floor(rangeStart.diff(start, 'weeks')) + 1;
+          label = `Week ${weekIndex}`;
+          rangeEnd = moment(rangeStart).endOf('week');
+          current.add(1, 'week');
+          break;
+        }
+        case 'monthly':
+          label = rangeStart.format('MMM');
+          rangeEnd = moment(rangeStart).endOf('month');
+          current.add(1, 'month');
+          break;
+        case 'yearly':
+          label = rangeStart.format('YYYY');
+          rangeEnd = moment(rangeStart).endOf('year');
+          current.add(1, 'year');
+          break;
+      }
+
+      if (type === 'sessionCount') {
+        const count = await this.sessionRepository.count({
+          where: {
+            ...(userId && { userId }),
+            createdAt: Between(rangeStart.toDate(), rangeEnd.toDate()),
+          },
+        });
+        result.push({ name: label, sessionCreationCount: count });
+      } else if (type === 'sessionDuration') {
+        const qb = this.sessionRepository
+          .createQueryBuilder('session')
+          .select('SUM(session.duration)', 'totalDuration')
+          .where('session.createdAt BETWEEN :start AND :end', {
+            start: rangeStart.toISOString(),
+            end: rangeEnd.toISOString(),
+          });
+
+        if (userId) qb.andWhere('session.userId = :userId', { userId });
+
+        const totalDuration = await qb.getRawOne();
+        result.push({
+          name: label,
+          sessionTotalDuration: parseFloat(totalDuration.totalDuration) || 0,
+        });
+      }
+    }
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: result,
+    };
+  }
 }

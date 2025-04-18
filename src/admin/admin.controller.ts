@@ -91,7 +91,7 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get session stats')
   async getSessionStats(@Query() queryParams: GetSessionStatsDto) {
-    return await this.sessionService.getSessionStats(queryParams, queryParams.userId);
+    return await this.userService.getUserStats(queryParams, queryParams.userId);
   }
 
   @Get('/session')
