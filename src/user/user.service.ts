@@ -35,7 +35,7 @@ export class UserService {
     private configService: ConfigService,
     private stripeWebhookServie: StripeWebhookService,
     private readonly fileStorageService: FileStorageService,
-  ) { }
+  ) {}
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
 
@@ -55,11 +55,9 @@ export class UserService {
     if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
 
     if (plan.name === SeedPlanNamesEnum.BASIC_PLAN) {
-
       if (user.stripeSubscriptiontId) {
-        await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
-      }
-      else {
+        await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
+      } else {
         userPlan = await this.stripeWebhookServie.createNewUserPlan(user, plan);
       }
       return {
@@ -67,7 +65,6 @@ export class UserService {
         data: null,
       };
     } else {
-
       const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
       successURL = successURL || `${appURL}/home`;
       cancelURL = cancelURL || `${appURL}/home`;
@@ -87,7 +84,7 @@ export class UserService {
     const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
     if (userPlan.planId === plan.id) throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
-    await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId)
+    await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
     // user.stripeSubscriptiontId = null;
     // user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
     // userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
@@ -96,7 +93,6 @@ export class UserService {
       message: SuccessResponseMessages.successGeneral,
       data: null,
     };
-
   }
 
   async updateCurrentUser(userId: number, updateCurrentUserDto: UpdateCurrentUserDto): Promise<ApiMessageData> {
@@ -148,7 +144,7 @@ export class UserService {
           featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
           left: usage?.usageCount || null,
           total: usage?.planFeatureProperty?.properties?.limit || null,
-        }
+        };
         usageArray.push(newUsage);
       });
     }
@@ -161,7 +157,6 @@ export class UserService {
     let [userSubscriptionHistory, total] = await this.subscriptionHistoryRepository.findAndCount({ where: { userId }, take: limit, skip, order: { id: 'DESC' }, relations: ['plan'] });
     const lastPage = Math.ceil(total / limit);
     return { message: SuccessResponseMessages.successGeneral, data: userSubscriptionHistory, page: page, total: total, lastPage: lastPage };
-
   }
 
   async getUserCardDetails(userId: number): Promise<ApiMessageData> {
@@ -169,14 +164,14 @@ export class UserService {
     if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: await this.stripeHelper.retrieveCards(user.stripeCustomerId)
+      data: await this.stripeHelper.retrieveCards(user.stripeCustomerId),
     };
   }
 
   async deleteUserCardDetails(userId: number): Promise<ApiMessage> {
     let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
-    await this.stripeHelper.deleteCard(user.stripeCustomerId)
+    await this.stripeHelper.deleteCard(user.stripeCustomerId);
     return {
       message: SuccessResponseMessages.successGeneral,
     };
@@ -196,12 +191,7 @@ export class UserService {
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
-        url: await this.stripeHelper.createCardSession(
-          { userId },
-          user.stripeCustomerId,
-          finalSuccessURL,
-          finalCancelURL
-        ),
+        url: await this.stripeHelper.createCardSession({ userId }, user.stripeCustomerId, finalSuccessURL, finalCancelURL),
       },
     };
   }
@@ -297,23 +287,20 @@ export class UserService {
     // Total Sessions
     const baseWhere: any = {
       ...(userId && { userId }),
-      createdAt: Between(start, end),
+      createdAt: start && end ? Between(start, end) : undefined,
     };
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
 
     // Completed Sessions
     const completedWhere: any = {
       ...(userId && { userId }),
-      updatedAt: Between(start, end),
+      createdAt: start && end ? Between(start, end) : undefined,
       status: SessionStatusEnum.COMPLETED,
     };
     const sessionCompletedCount = await this.sessionRepository.count({ where: completedWhere });
 
     // Total Duration
-    const totalDurationQuery = this.sessionRepository
-      .createQueryBuilder('session')
-      .select('SUM(session.duration)', 'total')
-      .where('session.createdAt BETWEEN :start AND :end', { start, end });
+    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :start AND :end', { start, end });
 
     if (userId) totalDurationQuery.andWhere('session.userId = :userId', { userId });
 
@@ -331,11 +318,11 @@ export class UserService {
     todayEnd.setHours(23, 59, 59, 999);
 
     const todayWhere: any = {
-      ...(userId && { userId }),
+      ...(userId && { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
 
-    const todayAppointments = await this.sessionRepository.count({ where: todayWhere });
+    const todayAppointments = await this.appointmentRepository.count({ where: todayWhere });
 
     return {
       message: SuccessResponseMessages.successGeneral,
@@ -348,7 +335,6 @@ export class UserService {
       },
     };
   }
-
 
   async getUserStatsGraph(reqQueryParams: GetSessionStatsDto, userId?: number): Promise<ApiMessageData> {
     let { startDate, endDate, orderWise, type } = reqQueryParams;
@@ -408,13 +394,10 @@ export class UserService {
         });
         result.push({ name: label, sessionCreationCount: count });
       } else if (type === 'sessionDuration') {
-        const qb = this.sessionRepository
-          .createQueryBuilder('session')
-          .select('SUM(session.duration)', 'totalDuration')
-          .where('session.createdAt BETWEEN :start AND :end', {
-            start: rangeStart.toISOString(),
-            end: rangeEnd.toISOString(),
-          });
+        const qb = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'totalDuration').where('session.createdAt BETWEEN :start AND :end', {
+          start: rangeStart.toISOString(),
+          end: rangeEnd.toISOString(),
+        });
 
         if (userId) qb.andWhere('session.userId = :userId', { userId });
 
