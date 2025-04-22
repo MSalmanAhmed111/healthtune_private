@@ -281,26 +281,26 @@ export class UserService {
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
 
-    const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
-    const end = endDate ? new Date(endDate) : new Date();
+    // const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
+    // const end = endDate ? new Date(endDate) : new Date();
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
     // Total Sessions
     const baseWhere: any = {
       ...(userId && { userId }),
-      createdAt: start && end ? Between(start, end) : undefined,
+      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
     };
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
 
     // Completed Sessions
     const completedWhere: any = {
       ...(userId && { userId }),
-      createdAt: start && end ? Between(start, end) : undefined,
+      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
       status: SessionStatusEnum.COMPLETED,
     };
     const sessionCompletedCount = await this.sessionRepository.count({ where: completedWhere });
 
     // Total Duration
-    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :start AND :end', { start, end });
+    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
 
     if (userId) totalDurationQuery.andWhere('session.userId = :userId', { userId });
 
