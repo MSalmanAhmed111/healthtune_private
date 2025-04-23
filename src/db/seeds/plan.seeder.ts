@@ -60,8 +60,8 @@ export class PlanSeeder {
         stripePriceId: null,
         features: [
           {
-            displayName: '2 Sessions Per Month',
-            properties: { isUnlimited: false, limit: 2, limitType: FeatureLimitTypeEnum.MONTHLY },
+            displayName: '15 Sessions Per Month',
+            properties: { isUnlimited: false, limit: 15, limitType: FeatureLimitTypeEnum.MONTHLY },
             feature: sessionCreationPlanFeatures,
           },
         ],

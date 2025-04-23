@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan, UserPlanUsage } from '@entities';
+import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum } from '@types';
 import { Repository, Brackets, Between } from 'typeorm';
-import { GetSessionStatsDto, GetUsersDto, PaginationDto, PaginationQueryDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { GetSessionStatsDto, GetUsersDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -84,6 +84,7 @@ export class UserService {
     const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
     if (userPlan.planId === plan.id) throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
+    if (!userPlan.isSubscriptionActive) throw new BadRequestException(`User already unsubscriped ${plan.name}.`);
     await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
     // user.stripeSubscriptiontId = null;
     // user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
@@ -307,7 +308,6 @@ export class UserService {
     const totalDurationResult = await totalDurationQuery.getRawOne();
     const sessionTotalDuration = parseFloat(totalDurationResult.total) || 0;
 
-
     // Average Duration
     const avgDuration = sessionCount ? (sessionTotalDuration / sessionCount).toFixed(2) : 0;
 
@@ -416,4 +416,3 @@ export class UserService {
     };
   }
 }
- 
