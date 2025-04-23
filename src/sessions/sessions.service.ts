@@ -35,7 +35,7 @@ export class SessionService {
     private readonly fileStorageService: FileStorageService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
-  ) { }
+  ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientFirstName, patientLastName, sessionType, noteFormat, language } = reqBody;
@@ -46,9 +46,11 @@ export class SessionService {
 
     if (user.userPlan && user.userPlan.usage.length > 0) {
       const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-      if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
-      usage.usageCount = usage.usageCount - 1;
-      await this.userPlanUsageRepository.save(usage);
+      if (usage) {
+        if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
+        usage.usageCount = usage.usageCount - 1;
+        await this.userPlanUsageRepository.save(usage);
+      }
     }
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
@@ -201,7 +203,4 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
-
-
-
 }

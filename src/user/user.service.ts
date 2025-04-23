@@ -307,6 +307,7 @@ export class UserService {
     const totalDurationResult = await totalDurationQuery.getRawOne();
     const sessionTotalDuration = parseFloat(totalDurationResult.total) || 0;
 
+
     // Average Duration
     const avgDuration = sessionCount ? (sessionTotalDuration / sessionCount).toFixed(2) : 0;
 
@@ -415,3 +416,4 @@ export class UserService {
     };
   }
 }
+ 
