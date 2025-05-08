@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
@@ -35,7 +35,7 @@ export class SessionService {
     private readonly fileStorageService: FileStorageService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
-  ) { }
+  ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
     const { patientFirstName, patientLastName, sessionType, noteFormat, language } = reqBody;
@@ -202,6 +202,13 @@ export class SessionService {
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
-
-
+  async updateSessionStatus(sessionId: number, updateSessionDto: UpdateSessionDto, userId: number = undefined): Promise<ApiMessageData> {
+    const { status } = updateSessionDto;
+    const where = userId !== undefined ? { id: sessionId, userId } : { id: sessionId };
+    const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient'] });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    session.status = status;
+    await this.sessionRepository.save(session);
+    return { message: SuccessResponseMessages.successGeneral, data: session };
+  }
 }

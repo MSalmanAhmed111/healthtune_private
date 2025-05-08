@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, R
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto } from 'src/dto';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, UpdateSessionDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
@@ -12,6 +12,12 @@ import { Request } from 'express';
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
+  @Put('/:id')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get a user session')
+  async updateSessionStatus(@Param('id', ValidateId) sessionId: number,@Body() updateSessionDto: UpdateSessionDto, @Req() req: Request) {
+    return await this.sessionService.updateSessionStatus(sessionId, updateSessionDto, +req.user.id);
+  }
 
   @Post('/')
   @HttpCode(HttpStatus.CREATED)

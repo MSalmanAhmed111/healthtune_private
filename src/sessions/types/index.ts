@@ -14,4 +14,6 @@ export enum SessionStatusEnum {
   PROCESS = 'Process',
   COMPLETED = 'Completed',
   CANCELLED = 'Cancelled',
+  REVIEWED = 'Reviewed',
+  APPROVED = 'Approved',
 }
