@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan, UserPlanUsage } from '@entities';
+import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum } from '@types';
 import { Repository, Brackets, Between } from 'typeorm';
-import { GetSessionStatsDto, GetUsersDto, PaginationDto, PaginationQueryDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
+import { GetSessionStatsDto, GetUsersDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -84,6 +84,7 @@ export class UserService {
     const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
     let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
     if (userPlan.planId === plan.id) throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
+    if (!userPlan.isSubscriptionActive) throw new BadRequestException(`User already unsubscriped ${plan.name}.`);
     await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
     // user.stripeSubscriptiontId = null;
     // user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
@@ -281,27 +282,27 @@ export class UserService {
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
 
-    const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
-    const end = endDate ? new Date(endDate) : new Date();
+    // const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
+    // const end = endDate ? new Date(endDate) : new Date();
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
     // Total Sessions
     const baseWhere: any = {
       ...(userId && { userId }),
-      createdAt: Between(start, end),
+      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
     };
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
 
     // Completed Sessions
     const completedWhere: any = {
       ...(userId && { userId }),
-      updatedAt: Between(start, end),
+      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
       status: SessionStatusEnum.COMPLETED,
     };
     const statusCountsRaw = await this.sessionRepository
       .createQueryBuilder('session')
       .select('session.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .where('session.updatedAt BETWEEN :start AND :end', { start, end })
+      .where('session.updatedAt BETWEEN :start AND :end', { startDate, endDate })
       .andWhere(userId ? 'session.userId = :userId' : '1=1', { userId })
       .groupBy('session.status')
       .getRawMany();
@@ -319,7 +320,7 @@ export class UserService {
     );
 
     // Total Duration
-    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :start AND :end', { start, end });
+    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
 
     if (userId) totalDurationQuery.andWhere('session.userId = :userId', { userId });
 
@@ -337,11 +338,11 @@ export class UserService {
     todayEnd.setHours(23, 59, 59, 999);
 
     const todayWhere: any = {
-      ...(userId && { userId }),
+      ...(userId && { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
 
-    const todayAppointments = await this.sessionRepository.count({ where: todayWhere });
+    const todayAppointments = await this.appointmentRepository.count({ where: todayWhere });
 
     return {
       message: SuccessResponseMessages.successGeneral,

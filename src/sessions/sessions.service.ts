@@ -46,9 +46,11 @@ export class SessionService {
 
     if (user.userPlan && user.userPlan.usage.length > 0) {
       const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-      if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
-      usage.usageCount = usage.usageCount - 1;
-      await this.userPlanUsageRepository.save(usage);
+      if (usage) {
+        if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
+        usage.usageCount = usage.usageCount - 1;
+        await this.userPlanUsageRepository.save(usage);
+      }
     }
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
