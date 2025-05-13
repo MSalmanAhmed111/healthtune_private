@@ -281,69 +281,74 @@ export class UserService {
 
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
-
-    // const start = startDate ? new Date(startDate) : new Date('2024-01-01T00:00:00.000Z');
-    // const end = endDate ? new Date(endDate) : new Date();
+  
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
-    // Total Sessions
+  
     const baseWhere: any = {
       ...(userId && { userId }),
-      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
+      ...(startDate && endDate ? { createdAt: Between(startDate, endDate) } : {}),
     };
+  
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
-
-    // Completed Sessions
-    const completedWhere: any = {
-      ...(userId && { userId }),
-      createdAt: startDate && endDate ? Between(startDate, endDate) : undefined,
-      status: SessionStatusEnum.COMPLETED,
-    };
-    const statusCountsRaw = await this.sessionRepository
+  
+    let query = this.sessionRepository
       .createQueryBuilder('session')
       .select('session.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('session.updatedAt BETWEEN :start AND :end', { startDate, endDate })
-      .andWhere(userId ? 'session.userId = :userId' : '1=1', { userId })
-      .groupBy('session.status')
-      .getRawMany();
-
-    const statusCounts: Record<string, number> = Object.fromEntries(statusCountsRaw.map(({ status, count }) => [status, parseInt(count, 10)]));
-
-    const allStatuses = Object.values(SessionStatusEnum);
-
-    const statusCountsWithDefaults = allStatuses.reduce(
-      (acc, status) => {
-        acc[status] = statusCounts[status] || 0;
-        return acc;
-      },
-      {} as Record<string, number>,
+      .addSelect('COUNT(*)', 'count');
+  
+    if (startDate && endDate) {
+      query = query.where('session.updatedAt BETWEEN :startDate AND :endDate', { startDate, endDate });
+    }
+  
+    if (userId) {
+      query = query.andWhere('session.userId = :userId', { userId });
+    }
+  
+    query = query.groupBy('session.status');
+  
+    const statusCountsRaw = await query.getRawMany();
+  
+    const statusCounts: Record<string, number> = Object.fromEntries(
+      statusCountsRaw.map(({ status, count }) => [status, parseInt(count, 10)])
     );
-
-    // Total Duration
-    const totalDurationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total').where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
-
-    if (userId) totalDurationQuery.andWhere('session.userId = :userId', { userId });
-
-    const totalDurationResult = await totalDurationQuery.getRawOne();
+  
+    const allStatuses = Object.values(SessionStatusEnum);
+  
+    const statusCountsWithDefaults = allStatuses.reduce((acc, status) => {
+      acc[status] = statusCounts[status] || 0;
+      return acc;
+    }, {} as Record<string, number>);
+  
+    let durationQuery = this.sessionRepository
+      .createQueryBuilder('session')
+      .select('SUM(session.duration)', 'total');
+  
+    if (startDate && endDate) {
+      durationQuery = durationQuery.where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
+    }
+  
+    if (userId) {
+      durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
+    }
+  
+    const totalDurationResult = await durationQuery.getRawOne();
     const sessionTotalDuration = parseFloat(totalDurationResult.total) || 0;
-
-    // Average Duration
+  
     const avgDuration = sessionCount ? (sessionTotalDuration / sessionCount).toFixed(2) : 0;
-
-    // Appointments Today
+  
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-
+  
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
-
+  
     const todayWhere: any = {
       ...(userId && { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
-
+  
     const todayAppointments = await this.appointmentRepository.count({ where: todayWhere });
-
+  
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
