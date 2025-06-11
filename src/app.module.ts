@@ -22,6 +22,8 @@ import { AdminModule } from './admin/admin.module';
 import { PlanModule } from './plan/plan.module';
 import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
 import { EDocumentsModule } from './e-forms/e-forms.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { PushNotificationModule } from './push-notification/push-notification.module';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { EDocumentsModule } from './e-forms/e-forms.module';
       load: [configuration],
     }),
     TypeOrmModule.forRoot(dataSourceOptions),
+    ScheduleModule.forRoot(),
     SessionsModule,
     MacrosModule,
     TemplatesModule,
@@ -44,7 +47,8 @@ import { EDocumentsModule } from './e-forms/e-forms.module';
     AuthModule,
     AdminModule,
     PlanModule,
-    EDocumentsModule
+    EDocumentsModule,
+    PushNotificationModule,
   ],
   controllers: [AppController],
   providers: [

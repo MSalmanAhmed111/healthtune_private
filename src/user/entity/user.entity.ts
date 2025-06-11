@@ -1,4 +1,4 @@
-import { EDocument, EDocumentIssuance, Patient, Session, Setting, SubscriptionHistory, UserPlan } from '@entities';
+import { EDocument, EDocumentIssuance, Patient, Session, Setting, SubscriptionHistory, UserDevices, UserPlan } from '@entities';
 import { fileObject } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 
@@ -86,4 +86,7 @@ export class User {
 
   @OneToMany(() => EDocumentIssuance, (edocumentIssueance) => edocumentIssueance.doctorId, { onDelete: 'CASCADE' })
   edocuments: EDocumentIssuance[];
+
+  @OneToMany(() => UserDevices, (userDevices) => userDevices.user)
+  userDevices: UserDevices[];
 }
