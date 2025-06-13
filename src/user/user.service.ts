@@ -281,74 +281,70 @@ export class UserService {
 
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
-  
+
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
-  
+
     const baseWhere: any = {
       ...(userId && { userId }),
       ...(startDate && endDate ? { createdAt: Between(startDate, endDate) } : {}),
     };
-  
+
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
-  
-    let query = this.sessionRepository
-      .createQueryBuilder('session')
-      .select('session.status', 'status')
-      .addSelect('COUNT(*)', 'count');
-  
+
+    let query = this.sessionRepository.createQueryBuilder('session').select('session.status', 'status').addSelect('COUNT(*)', 'count');
+
     if (startDate && endDate) {
       query = query.where('session.updatedAt BETWEEN :startDate AND :endDate', { startDate, endDate });
     }
-  
+
     if (userId) {
       query = query.andWhere('session.userId = :userId', { userId });
     }
-  
+
     query = query.groupBy('session.status');
-  
+
     const statusCountsRaw = await query.getRawMany();
-  
-    const statusCounts: Record<string, number> = Object.fromEntries(
-      statusCountsRaw.map(({ status, count }) => [status, parseInt(count, 10)])
-    );
-  
+
+    const statusCounts: Record<string, number> = Object.fromEntries(statusCountsRaw.map(({ status, count }) => [status, parseInt(count, 10)]));
+
     const allStatuses = Object.values(SessionStatusEnum);
-  
-    const statusCountsWithDefaults = allStatuses.reduce((acc, status) => {
-      acc[status] = statusCounts[status] || 0;
-      return acc;
-    }, {} as Record<string, number>);
-  
-    let durationQuery = this.sessionRepository
-      .createQueryBuilder('session')
-      .select('SUM(session.duration)', 'total');
-  
+
+    const statusCountsWithDefaults = allStatuses.reduce(
+      (acc, status) => {
+        acc[status] = statusCounts[status] || 0;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    let durationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total');
+
     if (startDate && endDate) {
       durationQuery = durationQuery.where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
     }
-  
+
     if (userId) {
       durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
     }
-  
+
     const totalDurationResult = await durationQuery.getRawOne();
     const sessionTotalDuration = parseFloat(totalDurationResult.total) || 0;
-  
+
     const avgDuration = sessionCount ? (sessionTotalDuration / sessionCount).toFixed(2) : 0;
-  
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-  
+
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
-  
+
     const todayWhere: any = {
       ...(userId && { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
-  
+
     const todayAppointments = await this.appointmentRepository.count({ where: todayWhere });
-  
+
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {

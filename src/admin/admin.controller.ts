@@ -1,13 +1,15 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SwaggerApiResponse } from '@decorators';
-import { CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto } from '@dtos';
+import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { UserService } from 'src/user/user.service';
 import { ApiTags } from '@nestjs/swagger';
 import { AppointmentService } from 'src/appointment/appointment.service';
 import { ApiMessageData } from '@types';
 import { SessionService } from 'src/sessions/sessions.service';
+import { Public } from 'src/common/decorators/public.decorator';
+import { AuthType } from 'src/common/decorators/auth-type.decorator';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -18,6 +20,15 @@ export class AdminController {
     private readonly appointmentService: AppointmentService,
     private readonly sessionService: SessionService,
   ) {}
+
+  @Public()
+  @Post('login')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Login')
+  async login(@Body() reqBody: AdminLoginDto): Promise<ApiMessageData> {
+    return await this.adminService.login(reqBody);
+  }
 
   //  ==================================================================================================================================================================
   // ?                                                              USER APIS
