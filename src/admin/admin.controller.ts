@@ -35,6 +35,7 @@ export class AdminController {
   //  ==================================================================================================================================================================
 
   @Get('/user')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all users')
   async getUsers(@Query() queryParams: PaginationUserQueryDto): Promise<ApiMessageData> {
@@ -42,6 +43,7 @@ export class AdminController {
   }
 
   @Get('/user/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
   async getUser(@Param('id', ValidateId) id: number): Promise<ApiMessageData> {
@@ -49,6 +51,7 @@ export class AdminController {
   }
 
   @Put('/user/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update user')
   async updateUser(@Param('id', ValidateId) id: number, @Body() reqBody: UpdateUserDto): Promise<ApiMessageData> {
@@ -60,6 +63,7 @@ export class AdminController {
   //  ==================================================================================================================================================================
 
   @Post('/appointment')
+  @AuthType('admin')
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new appointment')
   async createAppointment(@Body() reqBody: CreateAppointmentDto): Promise<ApiMessageData> {
@@ -67,6 +71,7 @@ export class AdminController {
   }
 
   @Put('/appointment/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update appointment')
   async updateAppointment(@Param('id', ValidateId) appointmentId: number, @Body() reqBody: UpdateAppointmentDto) {
@@ -74,6 +79,7 @@ export class AdminController {
   }
 
   @Get('/appointment')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all appointments')
   async getAppointments(@Query() queryParams: GetAppointmentsDto): Promise<ApiMessageData> {
@@ -81,6 +87,7 @@ export class AdminController {
   }
 
   @Get('/appointment/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get an appointment by ID')
   async getAppointment(@Param('id', ValidateId) appointmentId: number): Promise<ApiMessageData> {
@@ -88,6 +95,7 @@ export class AdminController {
   }
 
   @Delete('/appointment/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete an appointment by ID')
   async deleteAppointment(@Param('id', ValidateId) appointmentId: number): Promise<ApiMessageData> {
@@ -99,6 +107,7 @@ export class AdminController {
   //  ==================================================================================================================================================================
 
   @Get('/session/stats')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get session stats')
   async getSessionStats(@Query() queryParams: GetSessionStatsDto) {
@@ -106,6 +115,7 @@ export class AdminController {
   }
 
   @Get('/session')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all sessions')
   async getSessions(@Query() queryParams: GetSessionsDto) {
@@ -113,6 +123,7 @@ export class AdminController {
   }
 
   @Get('/session/:id')
+  @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a session by ID')
   async getSession(@Param('id', ValidateId) sessionId: number) {

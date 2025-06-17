@@ -203,7 +203,13 @@ export class UserService {
     const { query, banned = false, page, limit } = getUsersDto;
     const skip = (page - 1) * limit;
 
-    const qb = this.userRepository.createQueryBuilder('user');
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userPlan', 'userPlan')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
+      .leftJoinAndSelect('userPlan.usage', 'usage')
+      .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature');
 
     if (banned === false || banned === true) qb.andWhere('user.banned = :banned', { banned });
 
@@ -224,16 +230,30 @@ export class UserService {
 
     const lastPage = Math.ceil(total / limit);
 
+    let data = [];
+
     for (const fetchedUser of items) {
       if (fetchedUser.profileImage) {
         const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
         if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
       }
+      const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
+      if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
+        fetchedUser.userPlan.usage.forEach((usage) => {
+          const newUsage = {
+            featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
+            left: usage?.usageCount || null,
+            total: usage?.planFeatureProperty?.properties?.limit || null,
+          };
+          usageArray.push(newUsage);
+        });
+      }
+      data.push({ ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } });
     }
 
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: items,
+      data: data,
       total,
       page,
       lastPage,

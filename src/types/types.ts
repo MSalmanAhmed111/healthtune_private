@@ -19,6 +19,11 @@ export interface ApiMessageDataPagination extends ApiMessageData {
   total: number;
 }
 
+export enum AuthTypeEnum {
+  ADMIN = 'admin',
+  CLERK = 'clerk',
+}
+
 
 export interface StripeProduct {
   name: string,
