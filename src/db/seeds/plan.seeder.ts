@@ -135,19 +135,29 @@ export class PlanSeeder {
 
     for (const planData of plans) {
       let plan = await planRepository.findOne({ where: { name: planData.name } });
-      const { name, description, price, planType } = plan;
+
       if ((action as ActionType) === ActionType.Create && !plan) {
-        if (!plan) {
-          const stripeProduct = await this.stripeHelper.createProduct(name, description);
-          const stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, planType);
-          plan.stripeProductId = stripeProduct.id;
-          plan.stripePriceId = stripePrice.id;
-          plan = await planRepository.save(plan);
-        }
+        const { name, description, price, planType } = planData;
+        const stripeProduct = await this.stripeHelper.createProduct(name, description);
+        const stripePrice = await this.stripeHelper.createProductPrice(stripeProduct.id, +price, planType);
+
+        const newPlan = planRepository.create({
+          name,
+          description,
+          price,
+          planType,
+          stripeProductId: stripeProduct.id,
+          stripePriceId: stripePrice.id,
+          features: [], // or set later
+        });
+
+        plan = await planRepository.save(newPlan);
         continue;
-      } else if ((action as ActionType) === ActionType.Update && plan) {
-        planData.stripeProductId = plan.stripeProductId || null,
-        planData.stripePriceId = plan.stripePriceId || null;
+      }
+
+      if ((action as ActionType) === ActionType.Update && plan) {
+        const { name, description, price, planType } = plan;
+        (planData.stripeProductId = plan.stripeProductId || null), (planData.stripePriceId = plan.stripePriceId || null);
         if (planData.stripeProductId === null) {
           const newStripeProduct = await this.stripeHelper.createProduct(name, description);
           planData.stripeProductId = newStripeProduct.id;
