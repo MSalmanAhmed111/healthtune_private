@@ -148,10 +148,23 @@ export class PlanSeeder {
           planType,
           stripeProductId: stripeProduct.id,
           stripePriceId: stripePrice.id,
-          features: [], // or set later
         });
 
         plan = await planRepository.save(newPlan);
+
+        // ✅ Create feature properties
+        for (const feature of planData.features) {
+          const featureProperty = planFeaturePropertyRepository.create({
+            plan,
+            feature: feature.feature,
+            displayName: feature.displayName,
+            description: feature.description ?? null,
+            ...feature.properties,
+          });
+
+          await planFeaturePropertyRepository.save(featureProperty);
+        }
+
         continue;
       }
 
