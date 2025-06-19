@@ -1,16 +1,14 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString, IsUrl } from "class-validator";
+import { Matches, IsOptional } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RedirectionUrlDto {
-    @IsOptional()
-    @IsString()
-    @IsUrl()
-    @ApiPropertyOptional({ description: 'Rediection url after successful payment' })
-    successURL?: string;
+  @IsOptional()
+  @Matches(/^(https?:\/\/)(localhost|[\w.-]+)(:\d+)?(\/[\w.-]*)*\/?$/, { message: 'successURL must be a valid URL' })
+  @ApiPropertyOptional({ description: 'Redirection URL after successful payment' })
+  successURL?: string;
 
-    @IsOptional()
-    @IsString()
-    @IsUrl()
-    @ApiPropertyOptional({ description: 'Redirection url after cancelling payment' })
-    cancelURL?: string;
+  @IsOptional()
+  @Matches(/^(https?:\/\/)(localhost|[\w.-]+)(:\d+)?(\/[\w.-]*)*\/?$/, { message: 'cancelURL must be a valid URL' })
+  @ApiPropertyOptional({ description: 'Redirection URL after cancelling payment' })
+  cancelURL?: string;
 }
