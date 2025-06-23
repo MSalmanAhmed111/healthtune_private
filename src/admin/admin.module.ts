@@ -4,13 +4,14 @@ import { AdminController } from './admin.controller';
 import { UserModule } from 'src/user/user.module';
 import { AppointmentModule } from 'src/appointment/appointment.module';
 import { SessionsModule } from 'src/sessions/sessions.module';
-import { User, Appointment, Session } from '@entities';
+import { User, Appointment, Session, Admin } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Admin } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { AccessTokenStrategy } from '@strategies/access-token.strategy';
 
 @Module({
   imports: [UserModule, AppointmentModule, SessionsModule, TypeOrmModule.forFeature([User, Session, Admin, Appointment])], 
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, JwtService, AccessTokenStrategy],
 })
 export class AdminModule {}

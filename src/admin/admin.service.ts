@@ -24,7 +24,7 @@ export class AdminService {
 
     if (!password) throw new BadRequestException('Password is required for local login');
 
-    const admin = await this.adminRepository.createQueryBuilder('user').select(['user.id', 'user.firstName', 'user.lastName', 'user.password', 'user.email', 'user.isVerified', 'user.isActive', 'user.provider']).where('user.email = :email', { email }).getOne();
+    const admin = await this.adminRepository.createQueryBuilder('user').select(['user.id', 'user.firstName', 'user.lastName', 'user.password', 'user.email', 'user.isVerified', 'user.isActive']).where('user.email = :email', { email }).getOne();
 
     if (!admin) throw new BadRequestException(adminErrorMessages.invalidEmail);
 
