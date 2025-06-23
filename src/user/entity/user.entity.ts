@@ -1,4 +1,4 @@
-import { EDocument, EDocumentIssuance, Patient, Session, Setting, SubscriptionHistory, UserDevices, UserPlan } from '@entities';
+import { EDocument, EDocumentIssuance, Patient, QuickNotes, Session, Setting, SubscriptionHistory, UserDevices, UserPlan } from '@entities';
 import { fileObject } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 
@@ -89,4 +89,7 @@ export class User {
 
   @OneToMany(() => UserDevices, (userDevices) => userDevices.user)
   userDevices: UserDevices[];
+
+  @OneToMany(() => QuickNotes, (quickNotes) => quickNotes.user)
+  quickNotes: QuickNotes[];
 }

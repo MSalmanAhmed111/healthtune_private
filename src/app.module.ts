@@ -24,6 +24,7 @@ import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
 import { EDocumentsModule } from './e-forms/e-forms.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PushNotificationModule } from './push-notification/push-notification.module';
+import { QuickNotessModule } from './quick-notes/quick-notes.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { PushNotificationModule } from './push-notification/push-notification.mo
     PlanModule,
     EDocumentsModule,
     PushNotificationModule,
+    QuickNotessModule,
   ],
   controllers: [AppController],
   providers: [

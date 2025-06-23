@@ -10,4 +10,5 @@ export * from 'src/appointment/messages';
 export * from 'src/file-storage/messages';
 export * from 'src/plan/messages';
 export * from 'src/e-forms/messages';
+export * from 'src/quick-notes/messages'
 export * from 'src/admin/messages'

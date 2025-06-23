@@ -302,6 +302,11 @@ export class UserService {
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
 
+    if (endDate) {
+      endDate = new Date(endDate);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
 
     const baseWhere: any = {

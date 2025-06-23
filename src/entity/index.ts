@@ -11,3 +11,4 @@ export * from 'src/file-storage/entity';
 export * from 'src/plan/entity';
 export * from 'src/e-forms/entity';
 export * from 'src/admin/entity';
+export * from 'src/quick-notes/entity';
