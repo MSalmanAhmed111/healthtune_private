@@ -6,6 +6,7 @@ import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorage, Patient } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
+import moment from 'moment-timezone';
 
 @Injectable()
 export class PatientService {
@@ -15,7 +16,7 @@ export class PatientService {
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
-  ) { }
+  ) {}
 
   async createPatient(reqBody: CreatePatientDto, doctorId: number): Promise<ApiMessageData> {
     const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails } = reqBody;
@@ -40,49 +41,49 @@ export class PatientService {
       doctorId,
       address: address
         ? {
-          streetAddress: address.streetAddress || null,
-          city: address.city || null,
-          area: address.area || null,
-          postalCode: address.postalCode || null,
-          country: address.country || null,
-        }
+            streetAddress: address.streetAddress || null,
+            city: address.city || null,
+            area: address.area || null,
+            postalCode: address.postalCode || null,
+            country: address.country || null,
+          }
         : null,
       medicalDetails: medicalDetails
         ? {
-          bloodType: medicalDetails.bloodType || null,
-          medicalHistory: medicalDetails.medicalHistory || null,
-          allergies: medicalDetails.allergies || null,
-          currentMedications: medicalDetails.currentMedications || null,
-          chronicDiseases: medicalDetails.chronicDiseases || null,
-          surgicalHistory: medicalDetails.surgicalHistory || null,
-          isSmoker: medicalDetails.isSmoker !== undefined ? medicalDetails.isSmoker : null,
-          isAlcoholic: medicalDetails.isAlcoholic !== undefined ? medicalDetails.isAlcoholic : null,
-        }
+            bloodType: medicalDetails.bloodType || null,
+            medicalHistory: medicalDetails.medicalHistory || null,
+            allergies: medicalDetails.allergies || null,
+            currentMedications: medicalDetails.currentMedications || null,
+            chronicDiseases: medicalDetails.chronicDiseases || null,
+            surgicalHistory: medicalDetails.surgicalHistory || null,
+            isSmoker: medicalDetails.isSmoker !== undefined ? medicalDetails.isSmoker : null,
+            isAlcoholic: medicalDetails.isAlcoholic !== undefined ? medicalDetails.isAlcoholic : null,
+          }
         : null,
       contactDetails: contactDetails
         ? {
-          phoneNumber: contactDetails.phoneNumber || null,
-          emergencyContactName: contactDetails.emergencyContactName || null,
-          emergencyContactRelationship: contactDetails.emergencyContactRelationship || null,
-          emergencyContactPhone: contactDetails.emergencyContactPhone || null,
-        }
+            phoneNumber: contactDetails.phoneNumber || null,
+            emergencyContactName: contactDetails.emergencyContactName || null,
+            emergencyContactRelationship: contactDetails.emergencyContactRelationship || null,
+            emergencyContactPhone: contactDetails.emergencyContactPhone || null,
+          }
         : null,
       admissionDetails: admissionDetails
         ? {
-          admissionDate: admissionDetails.admissionDate || null,
-          admissionReason: admissionDetails.admissionReason || null,
-          roomNumber: admissionDetails.roomNumber || null,
-          isDischarged: admissionDetails.isDischarged || null,
-          dischargeDate: admissionDetails.dischargeDate !== undefined ? admissionDetails.dischargeDate : null,
-        }
+            admissionDate: admissionDetails.admissionDate || null,
+            admissionReason: admissionDetails.admissionReason || null,
+            roomNumber: admissionDetails.roomNumber || null,
+            isDischarged: admissionDetails.isDischarged || null,
+            dischargeDate: admissionDetails.dischargeDate !== undefined ? admissionDetails.dischargeDate : null,
+          }
         : null,
       insuranceDetails: insuranceDetails
         ? {
-          insuranceProvider: insuranceDetails.insuranceProvider || null,
-          insurancePolicyNumber: insuranceDetails.insurancePolicyNumber || null,
-          insuranceExpiryDate: insuranceDetails.insuranceExpiryDate || null,
-          isInsured: insuranceDetails.isInsured !== undefined ? insuranceDetails.isInsured : null,
-        }
+            insuranceProvider: insuranceDetails.insuranceProvider || null,
+            insurancePolicyNumber: insuranceDetails.insurancePolicyNumber || null,
+            insuranceExpiryDate: insuranceDetails.insuranceExpiryDate || null,
+            isInsured: insuranceDetails.isInsured !== undefined ? insuranceDetails.isInsured : null,
+          }
         : null,
     });
 
@@ -138,7 +139,7 @@ export class PatientService {
   }
 
   async getPatients(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
-    const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC' } = getPatientDto;
+    const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     const qb = this.patientRepository.createQueryBuilder('patient');
 
@@ -158,8 +159,17 @@ export class PatientService {
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    qb.skip((page - 1) * limit).take(limit);
+    if (byTodayAppointment) {
+      const todayStart = moment.utc().startOf('day').toDate();
+      const todayEnd = moment.utc().endOf('day').toDate();
 
+      qb.innerJoin('patient.appointments', 'appointment').andWhere('appointment.appointmentDate >= :todayStart AND appointment.appointmentDate <= :todayEnd', {
+        todayStart,
+        todayEnd,
+      });
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
 
     const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
     const lastPage = Math.ceil(total / limit);
@@ -179,7 +189,6 @@ export class PatientService {
       lastPage,
     };
   }
-
   async getPatient(patientId: number, doctorId: number = undefined): Promise<ApiMessageData> {
     const where = doctorId !== undefined ? { id: patientId, doctorId } : { id: patientId };
     const patient = await this.patientRepository.findOne({ where });

@@ -1,5 +1,5 @@
 import { Entity, Column, OneToMany, JoinColumn, ManyToOne, Unique } from 'typeorm';
-import { Address, BaseEntity, EDocumentIssuance, Session, User } from 'src/entity';
+import { Address, Appointment, BaseEntity, EDocumentIssuance, Session, User } from 'src/entity';
 import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject } from '@types';
 
 export class PatientMedicalDetailsEntity {
@@ -79,7 +79,6 @@ export class PatientAdmissionDetailsEntity {
 @Entity({ name: 'patients' })
 export class Patient extends BaseEntity {
   @Unique(['doctorId', 'email'])
-
   @Column({ type: 'varchar', unique: true })
   mreNumber: string;
 
@@ -138,4 +137,6 @@ export class Patient extends BaseEntity {
   @OneToMany(() => EDocumentIssuance, (edocumentIssueance) => edocumentIssueance.patientId, { onDelete: 'CASCADE' })
   edocuments: EDocumentIssuance[];
 
+  @OneToMany(() => Appointment, (appointment) => appointment.patient)
+  appointments: Appointment[];
 }

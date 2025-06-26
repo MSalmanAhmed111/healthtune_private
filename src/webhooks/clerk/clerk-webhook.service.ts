@@ -53,6 +53,14 @@ export class ClerkWebhookService {
         isGlobal: false,
         userId: user?.id,
       },
+      {
+        type: 'General',
+        name: 'Enable patient by appointments',
+        value: true,
+        context: 'app/web',
+        isGlobal: false,
+        userId: user?.id,
+      },
     ];
 
     if (user) {

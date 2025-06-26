@@ -1,6 +1,6 @@
 import { Patient, User } from '@entities';
 import { AppointmentStatus } from '@types';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn, ManyToOne } from 'typeorm';
 
 @Entity({ name: 'appointment' })
 export class Appointment {
@@ -10,8 +10,9 @@ export class Appointment {
   // @ManyToOne(() => User, (user) => user.appointments, { eager: true })
   // doctor: User;
 
-  // @ManyToOne(() => Patient, (patient) => patient.appointments, { eager: true })
-  // patient: Patient;
+  @ManyToOne(() => Patient, (patient) => patient.appointments, { eager: false })
+  @JoinColumn({ name: 'patientId' })
+  patient: Patient;
 
   @Column({ type: 'integer' })
   patientId: number;
