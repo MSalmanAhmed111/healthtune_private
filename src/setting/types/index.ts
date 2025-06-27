@@ -10,10 +10,12 @@ export enum SettingNames {
   Language = 'Language',
   EnablePatientRecords = 'Enable patient records',
   EnableAudioRecording = 'Enable audio recording',
+  EnablePatientByAppointments = 'Enable patient by appointments',
 }
 
 export const SettingTypes: { [key in SettingNames]: string } = {
   [SettingNames.Language]: 'string',
   [SettingNames.EnablePatientRecords]: 'boolean',
   [SettingNames.EnableAudioRecording]: 'boolean',
+  [SettingNames.EnablePatientByAppointments]: 'boolean',
 };

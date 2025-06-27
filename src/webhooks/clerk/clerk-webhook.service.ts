@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan, Setting, User, UserPlan, UserPlanUsage } from '@entities';
 import { SuccessResponseMessages } from '@messages';
-import { ApiMessageData, PlanTypeEnum, SeedPlanNamesEnum } from '@types';
+import { ApiMessageData, PlanTypeEnum, SeedPlanNamesEnum, SettingNames } from '@types';
 import { StripeHelper } from '@helpers/stripe.helper';
 //import { User as ClerkUser } from '@clerk/backend';
 
@@ -31,7 +31,7 @@ export class ClerkWebhookService {
     const settings = [
       {
         type: 'General',
-        name: 'Language',
+        name: SettingNames.Language,
         value: 'English',
         context: 'app/web',
         isGlobal: false,
@@ -39,7 +39,7 @@ export class ClerkWebhookService {
       },
       {
         type: 'General',
-        name: 'Enable patient records',
+        name: SettingNames.EnablePatientRecords,
         value: true,
         context: 'app/web',
         isGlobal: false,
@@ -47,7 +47,7 @@ export class ClerkWebhookService {
       },
       {
         type: 'General',
-        name: 'Enable audio recording',
+        name: SettingNames.EnableAudioRecording,
         value: true,
         context: 'app/web',
         isGlobal: false,
@@ -55,7 +55,7 @@ export class ClerkWebhookService {
       },
       {
         type: 'General',
-        name: 'Enable patient by appointments',
+        name: SettingNames.EnablePatientByAppointments,
         value: true,
         context: 'app/web',
         isGlobal: false,
@@ -79,9 +79,8 @@ export class ClerkWebhookService {
       }
 
       // ===> to be removed later (using to sync existing user settings)
-      if (!user.settings) {
-        await this.settingRepository.save(settings);
-      }
+      await this.settingRepository.save({ ...settings, ...user.settings });
+
       return { message: SuccessResponseMessages.successGeneral, data: user };
     } else {
       user = this.userRepository.create({

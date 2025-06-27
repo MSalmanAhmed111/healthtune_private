@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, SettingNames } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { FileStorage, Patient } from '@entities';
+import { FileStorage, Patient, Setting } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import moment from 'moment-timezone';
 
@@ -13,6 +13,8 @@ export class PatientService {
   constructor(
     @InjectRepository(Patient)
     private readonly patientRepository: Repository<Patient>,
+    @InjectRepository(Setting)
+    private readonly settingsRepository: Repository<Setting>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
@@ -159,14 +161,17 @@ export class PatientService {
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    if (byTodayAppointment) {
-      const todayStart = moment.utc().startOf('day').toDate();
-      const todayEnd = moment.utc().endOf('day').toDate();
+    if (doctorId) {
+      const doctorSetting = await this.settingsRepository.findOne({ where: { userId: doctorId, name: SettingNames.EnablePatientByAppointments } });
+      if (doctorSetting?.value === true) {
+        const todayStart = moment.utc().startOf('day').toDate();
+        const todayEnd = moment.utc().endOf('day').toDate();
 
-      qb.innerJoin('patient.appointments', 'appointment').andWhere('appointment.appointmentDate >= :todayStart AND appointment.appointmentDate <= :todayEnd', {
-        todayStart,
-        todayEnd,
-      });
+        qb.innerJoin('patient.appointments', 'appointment').andWhere('appointment.appointmentDate >= :todayStart AND appointment.appointmentDate <= :todayEnd', {
+          todayStart,
+          todayEnd,
+        });
+      }
     }
 
     qb.skip((page - 1) * limit).take(limit);
