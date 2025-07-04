@@ -11,4 +11,7 @@ export class Template extends BaseEntity {
 
   @Column({ type: 'varchar', default: 'en' })
   language: string;
+
+  @Column({ type: 'varchar', default: false })
+  isDefault: boolean;
 }

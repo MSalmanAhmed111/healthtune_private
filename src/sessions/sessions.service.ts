@@ -162,7 +162,7 @@ export class SessionService {
   }
 
   async getSessions(getSessionsDto: GetSessionsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
-    const { query, page, limit, sort = 'DESC', patientId } = getSessionsDto;
+    const { query, page, limit, sort = 'DESC', patientId, startDate, endDate } = getSessionsDto;
     const qb = this.sessionRepository
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.note', 'note')
@@ -186,6 +186,9 @@ export class SessionService {
     }
     if (userId) qb.andWhere('session.userId = :userId', { userId });
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
+
+    if(startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });
+    if(endDate) qb.andWhere('session.createdAt <= :endDate', { endDate: moment(endDate).utc().endOf('day').toDate() });
 
     qb.skip((page - 1) * limit).take(limit);
 
