@@ -2,16 +2,15 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, D
 import { PatientService } from './patient.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData } from '@types';
-import { CreatePatientDto, GetPatientsDto, PaginationQueryDto, UpdatePatientDto } from '@dtos';
+import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
-import { Public } from 'src/common/decorators/public.decorator';
 import { Request } from 'express';
 
 @ApiTags('Patient')
 @Controller('patient')
 export class PatientController {
-  constructor(private readonly patientService: PatientService) { }
+  constructor(private readonly patientService: PatientService) {}
 
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
@@ -25,6 +24,13 @@ export class PatientController {
   @SwaggerApiResponse('Update patient')
   async updatePatient(@Param('id', ValidateId) patientId: number, @Body() reqBody: UpdatePatientDto) {
     return await this.patientService.updatePatient(patientId, reqBody);
+  }
+
+  @Get('/by-appointment')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all patient')
+  async getPatientsByAppointment(@Query() queryParams: GetPatientsDto, @Req() req: Request) {
+    return await this.patientService.getPatientsByAppointment(queryParams, +req.user.id);
   }
 
   @Get('/')

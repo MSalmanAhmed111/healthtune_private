@@ -1,9 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
@@ -30,6 +30,8 @@ export class SessionService {
     private readonly patientRepository: Repository<Patient>,
     @InjectRepository(Setting)
     private readonly settingRepository: Repository<Setting>,
+    @InjectRepository(SessionCosting)
+    private readonly sessionCostRepository: Repository<SessionCosting>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
@@ -79,6 +81,95 @@ export class SessionService {
     await this.sessionRepository.save(session);
 
     return { message: SuccessResponseMessages.successGeneral, data: session };
+  }
+
+  async updateSessionDetails(sessionId: number, dto: AddSessionDetailsDto, audioFile?: Express.Multer.File): Promise<ApiMessageData> {
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+
+    const updates = {};
+
+    // Update Note
+    if (dto.summary) {
+      let note = await this.noteRepository.findOne({ where: { sessionId } });
+      if (note) note.content = dto.summary;
+      else note = this.noteRepository.create({ sessionId, content: dto.summary });
+      await this.noteRepository.save(note);
+      session.note = note;
+    }
+
+    // Update Doctor Notes
+    if (dto.doctorNotes) {
+      let doctorNote = await this.doctorNoteRepository.findOne({ where: { sessionId } });
+      if (doctorNote) doctorNote.content = dto.doctorNotes;
+      else doctorNote = this.doctorNoteRepository.create({ sessionId, content: dto.doctorNotes });
+      await this.doctorNoteRepository.save(doctorNote);
+      session.doctorNotes = doctorNote;
+    }
+
+    // Update Diagnosis Codes
+    if (dto.diagnosisCodes) {
+      let diagnosis = await this.diagnosisCodesRepository.findOne({ where: { sessionId } });
+      if (diagnosis) diagnosis.content = dto.diagnosisCodes;
+      else diagnosis = this.diagnosisCodesRepository.create({ sessionId, content: dto.diagnosisCodes });
+      await this.diagnosisCodesRepository.save(diagnosis);
+      session.diagnosisCodes = diagnosis;
+    }
+
+    // Update Transcript
+    if (dto.transcript) {
+      const { assemblyId, content, duration } = dto.transcript;
+      let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
+      if (transcript) {
+        transcript.assemblyId = assemblyId || transcript.assemblyId;
+        transcript.content = content || transcript.content;
+      } else {
+        if (!assemblyId || !content) {
+          throw new BadRequestException(SessionErrorMessages.missingTrancriptFields);
+        }
+        transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });
+      }
+      await this.transcriptRepository.save(transcript);
+      session.transcript = transcript;
+      session.status = SessionStatusEnum.COMPLETED;
+      session.duration = duration ?? session.duration;
+    }
+
+    // Upload Audio File
+    if (audioFile) {
+      if (session.audioFile) await this.storageProvider.deleteFile(session.audioFile);
+      const uploadedAudio = await this.storageProvider.uploadFile(audioFile);
+      session.audioFile = uploadedAudio;
+    }
+
+    if (dto.cost) {
+      let sessionCost = await this.sessionCostRepository.findOne({ where: { sessionId } });
+
+      if (sessionCost) {
+        sessionCost.totalInputTokens = dto.cost.totalInputTokens ?? sessionCost.totalInputTokens;
+        sessionCost.totalOutputTokens = dto.cost.totalOutputTokens ?? sessionCost.totalOutputTokens;
+        sessionCost.totalTokens = dto.cost.totalTokens ?? sessionCost.totalTokens;
+        sessionCost.totalInputCost = dto.cost.totalInputCost || sessionCost.totalInputCost;
+        sessionCost.totalOutputCost = dto.cost.totalOutputCost || sessionCost.totalOutputCost;
+        sessionCost.totalSessionCost = dto.cost.totalSessionCost || sessionCost.totalSessionCost;
+        sessionCost.operations = dto.cost.operations || sessionCost.operations;
+      } else {
+        sessionCost = this.sessionCostRepository.create({
+          sessionId,
+          ...dto.cost,
+        });
+      }
+
+      await this.sessionCostRepository.save(sessionCost);
+      session.sessionCosting = sessionCost;
+    }
+
+    await this.sessionRepository.save(session);
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: session,
+    };
   }
 
   async addNoteToSession(sessionId: number, createNoteBody: AddNoteDto): Promise<ApiMessageData> {
@@ -187,8 +278,8 @@ export class SessionService {
     if (userId) qb.andWhere('session.userId = :userId', { userId });
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
 
-    if(startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });
-    if(endDate) qb.andWhere('session.createdAt <= :endDate', { endDate: moment(endDate).utc().endOf('day').toDate() });
+    if (startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });
+    if (endDate) qb.andWhere('session.createdAt <= :endDate', { endDate: moment(endDate).utc().endOf('day').toDate() });
 
     qb.skip((page - 1) * limit).take(limit);
 

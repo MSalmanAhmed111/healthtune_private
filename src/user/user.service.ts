@@ -129,7 +129,7 @@ export class UserService {
       .leftJoinAndSelect('userPlan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
       .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
-      //.select(this.userFields)
+      .select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'userPlan', 'plan', 'usage', 'planFeatureProperty', 'feature'])
       .where('user.id = :userId', { userId })
       .getOne();
 
@@ -209,7 +209,7 @@ export class UserService {
       .leftJoinAndSelect('userPlan.plan', 'plan')
       .leftJoinAndSelect('userPlan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
-      .leftJoinAndSelect('planFeatureProperty.feature', 'feature');
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
 
     if (banned === false || banned === true) qb.andWhere('user.banned = :banned', { banned });
 
@@ -226,7 +226,7 @@ export class UserService {
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
 
-    const [items, total] = await qb.select([...this.userFields, 'user.createdAt', 'user.updatedAt']).getManyAndCount();
+    const [items, total] = await qb.select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'userPlan', 'plan', 'usage', 'planFeatureProperty', 'feature']).getManyAndCount();
 
     const lastPage = Math.ceil(total / limit);
 
@@ -237,6 +237,7 @@ export class UserService {
         const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
         if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
       }
+      const sessionCount = await this.sessionRepository.count({ where: { userId: fetchedUser.id } });
       const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
       if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
         fetchedUser.userPlan.usage.forEach((usage) => {
@@ -248,7 +249,7 @@ export class UserService {
           usageArray.push(newUsage);
         });
       }
-      data.push({ ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } });
+      data.push({ ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray }, sessionCount });
     }
 
     return {

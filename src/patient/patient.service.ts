@@ -140,7 +140,7 @@ export class PatientService {
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
 
-  async getPatients(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
+  async getPatientsByAppointment(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     const qb = this.patientRepository.createQueryBuilder('patient');
@@ -194,6 +194,49 @@ export class PatientService {
       lastPage,
     };
   }
+
+  async getPatients(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
+    const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
+
+    const qb = this.patientRepository.createQueryBuilder('patient');
+
+    if (query) {
+      qb.andWhere(
+        new Brackets((qb) => {
+          qb.where('LOWER(patient.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(patient.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(patient.mreNumber) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(patient.email) LIKE LOWER(:query)', { query: `%${query}%` });
+        }),
+      );
+    }
+
+    if (doctorId !== undefined) qb.andWhere('patient.doctorId = :doctorId', { doctorId });
+    if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
+    if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
+    if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
+    const lastPage = Math.ceil(total / limit);
+
+    for (const patient of patients) {
+      if (patient.profileImage) {
+        const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+        if (image) patient.profileImage = { id: image.id, fileName: image.name };
+      }
+    }
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: patients,
+      page,
+      total,
+      lastPage,
+    };
+  }
+
   async getPatient(patientId: number, doctorId: number = undefined): Promise<ApiMessageData> {
     const where = doctorId !== undefined ? { id: patientId, doctorId } : { id: patientId };
     const patient = await this.patientRepository.findOne({ where });
