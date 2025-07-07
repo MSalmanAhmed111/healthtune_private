@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import { IsString, IsOptional, ValidateNested, IsNumber, IsArray, Min, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AddNoteDto, AddTranscriptDto } from '@dtos';
 import { Trim } from '@decorators';
+import { AddNoteDto } from './add-notes.entity';
+import { AddTranscriptDto } from './add-transcript.entity';
 
 export class SessionCostDto {
   @ApiProperty({
