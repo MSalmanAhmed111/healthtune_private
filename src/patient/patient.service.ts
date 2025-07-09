@@ -85,7 +85,7 @@ export class PatientService {
             insuranceProvider: insuranceDetails.insuranceProvider || null,
             insurancePolicyNumber: insuranceDetails.insurancePolicyNumber || null,
             insuranceExpiryDate: insuranceDetails.insuranceExpiryDate || null,
-            isInsured: insuranceDetails.isInsured !== undefined ? insuranceDetails.isInsured : null,
+            isInsured: insuranceDetails.isInsured !== undefined ? insuranceDetails.isInsured : true,
             effectiveDate: insuranceDetails.effectiveDate !== undefined ? insuranceDetails.effectiveDate : null,
             type: insuranceDetails.type || InsuranceTypeEnum.PRIVATE,
           }
