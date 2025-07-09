@@ -41,6 +41,7 @@ export enum GenderEnum {
 export enum LanguageEnum {
   URDU = 'Urdu',
   ENGLISH = 'English',
+  ARABIC = 'Arabic',
 }
 
 export enum SortEnum {

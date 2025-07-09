@@ -16,3 +16,11 @@ export enum MaritalStatusEnum {
   WIDOWED = 'Widowed',
   SEPERATED = 'Separated',
 }
+
+export enum InsuranceTypeEnum {
+  PRIVATE = 'Private',
+  MEDICARE = 'Medicare',
+  MEDICAID = 'Medicaid',
+  MILITARY = 'Military',
+  OTHER = 'Other',
+}

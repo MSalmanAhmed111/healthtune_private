@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsOptional, IsDate, IsBoolean, IsEnum, IsEmail, ValidateNested, Min, IsInt } from 'class-validator';
 import { Trim } from '@decorators';
-import { GenderEnum, BloodTypeEnum, MaritalStatusEnum } from '@types';
+import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, LanguageEnum, InsuranceTypeEnum } from '@types';
 import { AddressDto } from '@dtos';
 import { Type } from 'class-transformer';
 
@@ -103,6 +103,19 @@ export class PatientInsuranceDetails {
   @IsOptional()
   @IsBoolean()
   isInsured?: boolean;
+
+  @ApiPropertyOptional({ description: 'Effective date of the insurance', example: '2023-05-15', type: Date })
+  @IsOptional()
+  @IsNotEmpty()
+  @Trim()
+  @Type(() => Date)
+  @IsDate()
+  effectiveDate?: Date;
+
+  @ApiPropertyOptional({ description: 'Insurance type', enum: InsuranceTypeEnum, example: InsuranceTypeEnum.MEDICAID })
+  @IsOptional()
+  @IsEnum(InsuranceTypeEnum)
+  type?: InsuranceTypeEnum;
 }
 
 export class PatientAdmissionDetails {
@@ -177,6 +190,11 @@ export class CreatePatientDto {
   @Type(() => Date)
   @IsDate()
   dateOfBirth?: Date;
+
+  @ApiPropertyOptional({ description: 'Language preferences of the patient', enum: LanguageEnum, example: LanguageEnum.ARABIC })
+  @IsOptional()
+  @IsEnum(LanguageEnum)
+  languagePreference?: LanguageEnum;
 
   @ApiPropertyOptional({ description: 'Gender of the patient', enum: GenderEnum, example: GenderEnum.MALE })
   @IsOptional()

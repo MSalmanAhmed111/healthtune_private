@@ -1,6 +1,6 @@
 import { Entity, Column, OneToMany, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { Address, Appointment, BaseEntity, EDocumentIssuance, Session, User } from 'src/entity';
-import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject } from '@types';
+import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject, InsuranceTypeEnum, LanguageEnum } from '@types';
 
 export class PatientMedicalDetailsEntity {
   @Column({ type: 'varchar', nullable: true })
@@ -54,6 +54,12 @@ export class PatientInsuranceDetailsEntity {
 
   @Column({ type: 'date', nullable: true })
   insuranceExpiryDate?: Date;
+
+  @Column({ type: 'date', nullable: true, default: null })
+  effectiveDate?: Date;
+
+  @Column({ type: 'varchar', nullable: true, default: InsuranceTypeEnum.PRIVATE })
+  type: InsuranceTypeEnum;
 }
 
 export class PatientAdmissionDetailsEntity {
@@ -90,6 +96,9 @@ export class Patient extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: true })
   email: string;
+
+  @Column({ type: 'varchar', nullable: true, default: LanguageEnum.ENGLISH })
+  languagePreference: LanguageEnum;
 
   @Column({ type: 'date', nullable: true })
   dateOfBirth?: Date;

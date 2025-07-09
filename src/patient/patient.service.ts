@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, SettingNames } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorage, Patient, Setting } from '@entities';
@@ -21,7 +21,7 @@ export class PatientService {
   ) {}
 
   async createPatient(reqBody: CreatePatientDto, doctorId: number): Promise<ApiMessageData> {
-    const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails } = reqBody;
+    const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails, languagePreference } = reqBody;
     let mreCount = '0';
     let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
     if (email) {
@@ -41,6 +41,7 @@ export class PatientService {
       nationality,
       occupation,
       doctorId,
+      languagePreference,
       address: address
         ? {
             streetAddress: address.streetAddress || null,
@@ -85,6 +86,8 @@ export class PatientService {
             insurancePolicyNumber: insuranceDetails.insurancePolicyNumber || null,
             insuranceExpiryDate: insuranceDetails.insuranceExpiryDate || null,
             isInsured: insuranceDetails.isInsured !== undefined ? insuranceDetails.isInsured : null,
+            effectiveDate: insuranceDetails.effectiveDate !== undefined ? insuranceDetails.effectiveDate : null,
+            type: insuranceDetails.type || InsuranceTypeEnum.PRIVATE,
           }
         : null,
     });
