@@ -86,9 +86,6 @@ export class SessionService {
   async updateSessionDetails(sessionId: number, dto: AddSessionDetailsDto, audioFile?: Express.Multer.File): Promise<ApiMessageData> {
     const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
-
-    const updates = {};
-
     // Update Note
     if (dto.summary) {
       let note = await this.noteRepository.findOne({ where: { sessionId } });
@@ -122,7 +119,7 @@ export class SessionService {
       let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
       if (transcript) {
         transcript.assemblyId = assemblyId || transcript.assemblyId;
-        transcript.content = content || transcript.content;
+        transcript.content = content  || transcript.content;
       } else {
         if (!assemblyId || !content) {
           throw new BadRequestException(SessionErrorMessages.missingTrancriptFields);
@@ -163,6 +160,7 @@ export class SessionService {
       await this.sessionCostRepository.save(sessionCost);
       session.sessionCosting = sessionCost;
     }
+    
 
     await this.sessionRepository.save(session);
 

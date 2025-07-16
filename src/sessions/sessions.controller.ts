@@ -21,6 +21,7 @@ export class SessionController {
 
   @Put('/details/:id')
   @HttpCode(HttpStatus.CREATED)
+  @FileUpload('sessionAudio')
   @SwaggerApiResponse('Create a new session')
   async updateSessionDetails(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddSessionDetailsDto, @Req() req: Request, @UploadedFile() audioFile: Express.Multer.File): Promise<ApiMessageData> {
     return await this.sessionService.updateSessionDetails(sessionId, reqBody, audioFile);

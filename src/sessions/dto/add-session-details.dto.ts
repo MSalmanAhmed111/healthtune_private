@@ -2,18 +2,35 @@ import { Type } from 'class-transformer';
 import { IsString, IsOptional, ValidateNested, IsNumber, IsArray, Min, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Trim } from '@decorators';
-import { AddNoteDto } from './add-notes.entity';
-import { AddTranscriptDto } from './add-transcript.entity';
 
-export class SessionCostDto {
-  @ApiProperty({
-    example: 79,
-    description: 'ID of the session this cost is associated with',
-  })
+
+class AddNoteDto {
+  @ApiProperty({ description: 'Content of the note' })
+  @IsNotEmpty()
+  @IsString()
+  content: string;
+}
+
+// === AddTranscriptDto ===
+class AddTranscriptDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  assemblyId: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  content: object;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
-  sessionId: number;
+  duration?: number;
+}
+
+export class SessionCostDto {
 
   @ApiProperty({
     example: 946,
