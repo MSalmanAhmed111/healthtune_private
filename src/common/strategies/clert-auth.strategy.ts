@@ -23,7 +23,15 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     super();
   }
 
-  async validate(req: Request): Promise<{ id: number; metaData: Record<string, any> }> {
+  async validate(req: Request): Promise<{ 
+    id: number; 
+    metaData: Record<string, any>;
+    organizationId: number | null;
+    clerkOrganizationId: string | null;
+    role: string;
+    organizationRole: string | null;
+    rolePermissions: any;
+  }> {
     const token = req.headers.authorization?.split(' ').pop();
 
     if (!token) {
@@ -46,10 +54,21 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
       const tokenPayload = await verifyToken(token, { secretKey: clerkSecretKey });
       if (!tokenPayload || !tokenPayload?.sub) throw new UnauthorizedException('Invalid token payload');
 
-      const fetchedUser = await this.userRepository.findOne({ where: { clerkUserId: tokenPayload.sub } });
+      const fetchedUser = await this.userRepository.findOne({ 
+        where: { clerkUserId: tokenPayload.sub },
+        relations: ['organization'] 
+      });
       if (!fetchedUser) throw new NotFoundException('User not found with clerkId: ' + tokenPayload.sub);
 
-      return { id: fetchedUser.id, metaData: fetchedUser.publicMetadata };
+      return { 
+        id: fetchedUser.id, 
+        metaData: fetchedUser.publicMetadata,
+        organizationId: fetchedUser.organizationId,
+        clerkOrganizationId: fetchedUser.clerkOrganizationId,
+        role: fetchedUser.role,
+        organizationRole: fetchedUser.organizationRole,
+        rolePermissions: fetchedUser.rolePermissions
+      };
     } catch (error) {
       console.error(error);
       throw new UnauthorizedException('Invalid token');

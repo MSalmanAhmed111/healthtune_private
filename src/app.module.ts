@@ -25,6 +25,7 @@ import { EDocumentsModule } from './e-forms/e-forms.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PushNotificationModule } from './push-notification/push-notification.module';
 import { QuickNotessModule } from './quick-notes/quick-notes.module';
+import { CommonServicesModule } from './common/services/common-services.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { QuickNotessModule } from './quick-notes/quick-notes.module';
     }),
     TypeOrmModule.forRoot(dataSourceOptions),
     ScheduleModule.forRoot(),
+    CommonServicesModule,
     SessionsModule,
     MacrosModule,
     TemplatesModule,

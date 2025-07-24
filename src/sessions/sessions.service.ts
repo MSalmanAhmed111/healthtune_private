@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
@@ -7,6 +7,8 @@ import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, Get
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
+import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
+import { DataAccessService } from 'src/common/services/data-access.service';
 import moment from 'moment';
 
 @Injectable()
@@ -35,6 +37,8 @@ export class SessionService {
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
+    private readonly roleBasedAccessService: RoleBasedAccessService,
+    private readonly dataAccessService: DataAccessService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
   ) {}
@@ -251,7 +255,16 @@ export class SessionService {
   }
 
   async getSessions(getSessionsDto: GetSessionsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page, limit, sort = 'DESC', patientId, startDate, endDate } = getSessionsDto;
+    
     const qb = this.sessionRepository
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.note', 'note')
@@ -273,7 +286,9 @@ export class SessionService {
         }),
       );
     }
-    if (userId) qb.andWhere('session.userId = :userId', { userId });
+    
+    // Apply organization-based filtering
+    this.dataAccessService.applySessionsOrganizationFilter(qb, userContext, userId, 'session');
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
 
     if (startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });

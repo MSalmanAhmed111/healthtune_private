@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { FileStorage, Patient, Setting } from '@entities';
+import { FileStorage, Patient, Setting, User } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
+import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
+import { DataAccessService } from 'src/common/services/data-access.service';
 import moment from 'moment-timezone';
 
 @Injectable()
@@ -13,23 +15,40 @@ export class PatientService {
   constructor(
     @InjectRepository(Patient)
     private readonly patientRepository: Repository<Patient>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Setting)
     private readonly settingsRepository: Repository<Setting>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
+    private readonly roleBasedAccessService: RoleBasedAccessService,
+    private readonly dataAccessService: DataAccessService,
   ) {}
 
-  async createPatient(reqBody: CreatePatientDto, doctorId: number): Promise<ApiMessageData> {
+  async createPatient(reqBody: CreatePatientDto, userId: number): Promise<ApiMessageData> {
+    // Get user and check permissions
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    
+    if (!this.roleBasedAccessService.canManagePatients(userContext)) {
+      throw new ForbiddenException('You do not have permission to create patients');
+    }
+
     const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails, languagePreference } = reqBody;
     let mreCount = '0';
     let patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
     if (email) {
-      const emailExists = await this.patientRepository.findOne({ where: { email, doctorId } });
+      const emailExists = await this.patientRepository.findOne({ where: { email, doctorId: userId } });
       if (emailExists) throw new NotFoundException(PatientErrorMessages.emailExists);
     }
     if (patient) mreCount = patient.id.toString();
-    const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
+    const mreNumber = `MRE-${(+mreCount + 1).toString().padStart(7, '0')}`;
     patient = this.patientRepository.create({
       mreNumber,
       firstName,
@@ -40,7 +59,7 @@ export class PatientService {
       maritalStatus,
       nationality,
       occupation,
-      doctorId,
+      doctorId: userId,
       languagePreference,
       address: address
         ? {
@@ -143,7 +162,15 @@ export class PatientService {
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
 
-  async getPatientsByAppointment(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
+  async getPatientsByAppointment(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     const qb = this.patientRepository.createQueryBuilder('patient');
@@ -159,13 +186,15 @@ export class PatientService {
       );
     }
 
-    if (doctorId !== undefined) qb.andWhere('patient.doctorId = :doctorId', { doctorId });
+    // Apply organization-based filtering
+    this.dataAccessService.applyPatientsOrganizationFilter(qb, userContext, userId, 'patient');
+
     if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    if (doctorId) {
-      const doctorSetting = await this.settingsRepository.findOne({ where: { userId: doctorId, name: SettingNames.EnablePatientByAppointments } });
+    if (userId) {
+      const doctorSetting = await this.settingsRepository.findOne({ where: { userId: userId, name: SettingNames.EnablePatientByAppointments } });
       if (doctorSetting?.value === true) {
         const todayStart = moment.utc().startOf('day').toDate();
         const todayEnd = moment.utc().endOf('day').toDate();
@@ -198,7 +227,15 @@ export class PatientService {
     };
   }
 
-  async getPatients(getPatientDto: GetPatientsDto, doctorId: number = undefined): Promise<ApiMessageDataPagination> {
+  async getPatients(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     const qb = this.patientRepository.createQueryBuilder('patient');
@@ -214,7 +251,9 @@ export class PatientService {
       );
     }
 
-    if (doctorId !== undefined) qb.andWhere('patient.doctorId = :doctorId', { doctorId });
+    // Apply organization-based filtering
+    this.dataAccessService.applyPatientsOrganizationFilter(qb, userContext, userId, 'patient');
+
     if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
@@ -240,10 +279,28 @@ export class PatientService {
     };
   }
 
-  async getPatient(patientId: number, doctorId: number = undefined): Promise<ApiMessageData> {
-    const where = doctorId !== undefined ? { id: patientId, doctorId } : { id: patientId };
-    const patient = await this.patientRepository.findOne({ where });
+  async getPatient(patientId: number, userId: number): Promise<ApiMessageData> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    
+    const patient = await this.patientRepository.findOne({ 
+      where: { id: patientId },
+      relations: ['doctor'] 
+    });
+    
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+
+    // Check if user can access this patient
+    if (!this.dataAccessService.canAccessPatient(userContext, patient.doctorId, userId)) {
+      throw new ForbiddenException('You do not have permission to access this patient');
+    }
+
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
@@ -251,10 +308,32 @@ export class PatientService {
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
 
-  async deletePatient(patientId: number, doctorId: number = undefined): Promise<ApiMessageData> {
-    const where = doctorId !== undefined ? { id: patientId, doctorId } : { id: patientId };
-    const patient = await this.patientRepository.findOne({ where });
+  async deletePatient(patientId: number, userId: number): Promise<ApiMessageData> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    
+    if (!this.roleBasedAccessService.canManagePatients(userContext)) {
+      throw new ForbiddenException('You do not have permission to delete patients');
+    }
+
+    const patient = await this.patientRepository.findOne({ 
+      where: { id: patientId },
+      relations: ['doctor'] 
+    });
+    
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+
+    // Check if user can access this patient
+    if (!this.dataAccessService.canAccessPatient(userContext, patient.doctorId, userId)) {
+      throw new ForbiddenException('You do not have permission to delete this patient');
+    }
+
     if (patient.profileImage) {
       const previousImageExists = this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (previousImageExists) await this.fileStorageService.deleteFileStorage(patient.profileImage as number);

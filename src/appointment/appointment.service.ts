@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Not, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, SortEnum } from '@types';
 import { CreateAppointmentDto, GetAppointmentsDto, PaginationQueryDto, UpdateAppointmentDto } from 'src/dto';
 import { AppointmentErrorMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { Appointment, Patient, User } from '@entities';
+import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
+import { DataAccessService } from 'src/common/services/data-access.service';
 
 @Injectable()
 export class AppointmentService {
@@ -15,6 +17,8 @@ export class AppointmentService {
     private readonly patientRepository: Repository<Patient>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly roleBasedAccessService: RoleBasedAccessService,
+    private readonly dataAccessService: DataAccessService,
   ) {}
 
   async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
@@ -103,6 +107,14 @@ export class AppointmentService {
   }
 
   async getAppointments(getAppointmentDto: GetAppointmentsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
 
     const qb = this.appointmentRepository
@@ -125,7 +137,8 @@ export class AppointmentService {
       );
     }
 
-    if (userId) qb.andWhere('appointment.doctorId = :userId', { userId });
+    // Apply organization-based filtering
+    this.dataAccessService.applyAppointmentsOrganizationFilter(qb, userContext, userId, 'appointment');
     if (patientId) qb.andWhere('appointment.patientId = :patientId', { patientId });
     if (status) qb.andWhere('appointment.status = :status', { status });
     if (appointmentType) qb.andWhere('LOWER(appointment.appointmentType) = LOWER(:appointmentType)', { appointmentType });
@@ -158,9 +171,26 @@ export class AppointmentService {
   }
 
   async getAppointment(appointmentId: number, userId: number = undefined): Promise<ApiMessageData> {
-    const where = userId !== undefined ? { id: appointmentId, doctorId: userId } : { id: appointmentId };
-    const appointment = (await this.appointmentRepository.findOne({ where })) as Appointment & { doctor?: object; patient?: object };
+    // Get user and organization context
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: ['organization'] 
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    
+    const appointment = (await this.appointmentRepository.findOne({ 
+      where: { id: appointmentId },
+      relations: ['patient', 'patient.doctor']
+    })) as Appointment & { doctor?: object; patient?: object };
+    
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
+
+    // Check if user can access this appointment
+    if (!this.dataAccessService.canAccessAppointment(userContext, appointment.doctorId, userId)) {
+      throw new ForbiddenException('You do not have permission to access this appointment');
+    }
     if (appointment.doctorId) {
       const doctor = await this.userRepository.findOne({ where: { id: appointment.doctorId }, select: { firstName: true, lastName: true, email: true } });
       appointment.doctor = doctor;

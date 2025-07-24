@@ -1,0 +1,299 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { DefaultRoleEnum, UserOrganizationContext, RolePermissions, OrganizationRole } from '@types';
+import { User, Organization } from '@entities';
+
+@Injectable()
+export class RoleBasedAccessService {
+  constructor(
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
+  ) {}
+  
+  /**
+   * Get user organization context with dynamic role permissions
+   */
+  async getUserOrganizationContext(
+    user: User
+  ): Promise<UserOrganizationContext> {
+    const userId = user.id;
+    const clerkOrganizationId = user.clerkOrganizationId;
+    const userRole = user.organizationRole || user.role;
+    const customPermissions = user.rolePermissions;
+
+    // If user has custom permissions from Clerk membership, use those
+    if (customPermissions && this.isValidRolePermissions(customPermissions)) {
+      return {
+        userId,
+        isOrganizationUser: !!clerkOrganizationId,
+        organizationId: clerkOrganizationId,
+        role: userRole,
+        permissions: customPermissions,
+        canAccessOrganizationData: customPermissions.canAccessOrganizationData,
+        canAccessTodayOnlyData: customPermissions.canAccessTodayOnlyData,
+      };
+    }
+
+    // If no organization, use default doctor permissions
+    if (!clerkOrganizationId || !userRole) {
+      const defaultPermissions = this.getDefaultDoctorPermissions();
+      return {
+        userId,
+        isOrganizationUser: false,
+        organizationId: null,
+        role: DefaultRoleEnum.DOCTOR,
+        permissions: defaultPermissions,
+        canAccessOrganizationData: defaultPermissions.canAccessOrganizationData,
+        canAccessTodayOnlyData: defaultPermissions.canAccessTodayOnlyData,
+      };
+    }
+
+    // Get organization-specific role permissions
+    const permissions = await this.getOrganizationRolePermissions(clerkOrganizationId, userRole);
+
+    return {
+      userId,
+      isOrganizationUser: true,
+      organizationId: clerkOrganizationId,
+      role: userRole,
+      permissions,
+      canAccessOrganizationData: permissions.canAccessOrganizationData,
+      canAccessTodayOnlyData: permissions.canAccessTodayOnlyData,
+    };
+  }
+
+  /**
+   * Get permissions for a role within an organization
+   */
+  private async getOrganizationRolePermissions(
+    clerkOrganizationId: string,
+    role: string
+  ): Promise<RolePermissions> {
+    try {
+      const organization = await this.organizationRepository.findOne({
+        where: { clerkOrganizationId },
+      });
+
+      if (!organization?.roles) {
+        // Fallback to system default roles if organization doesn't have custom roles
+        return this.getSystemDefaultPermissions(role);
+      }
+
+      // Find the role in organization's custom roles
+      const organizationRole = organization.roles.find(
+        r => r.name.toLowerCase() === role.toLowerCase()
+      );
+
+      if (organizationRole && this.isValidRolePermissions(organizationRole.permissions)) {
+        return organizationRole.permissions;
+      }
+
+      // If role not found, use organization's default role
+      const defaultRole = organization.roles.find(
+        r => r.name.toLowerCase() === organization.defaultRole.toLowerCase()
+      );
+
+      if (defaultRole && this.isValidRolePermissions(defaultRole.permissions)) {
+        return defaultRole.permissions;
+      }
+
+      return this.getDefaultDoctorPermissions();
+    } catch (error) {
+      console.error('Error getting organization role permissions:', error);
+      return this.getSystemDefaultPermissions(role);
+    }
+  }
+
+  /**
+   * Get system default permissions for backward compatibility
+   */
+  private getSystemDefaultPermissions(role: string): RolePermissions {
+    const roleMap: Record<string, RolePermissions> = {
+      'admin': { 
+        canAccessOrganizationData: true, 
+        canAccessTodayOnlyData: false 
+      },
+      'staff': { 
+        canAccessOrganizationData: true, 
+        canAccessTodayOnlyData: false 
+      },
+      'doctor': { 
+        canAccessOrganizationData: false, 
+        canAccessTodayOnlyData: true 
+      },
+    };
+    return roleMap[role.toLowerCase()] || this.getDefaultDoctorPermissions();
+  }
+
+  /**
+   * Default doctor permissions
+   */
+  private getDefaultDoctorPermissions(): RolePermissions {
+    return {
+      canAccessOrganizationData: false,
+      canAccessTodayOnlyData: true,
+    };
+  }
+
+  /**
+   * Validate role permissions object
+   */
+  private isValidRolePermissions(permissions: any): permissions is RolePermissions {
+    return permissions &&
+           typeof permissions === 'object' &&
+           typeof permissions.canAccessOrganizationData === 'boolean' &&
+           typeof permissions.canAccessTodayOnlyData === 'boolean';
+  }
+
+  /**
+   * Sync organization roles from Clerk metadata
+   */
+  async syncOrganizationRoles(
+    clerkOrganizationId: string,
+    organizationMetadata: any
+  ): Promise<void> {
+    try {
+      const organization = await this.organizationRepository.findOne({
+        where: { clerkOrganizationId },
+      });
+
+      if (!organization) {
+        console.warn(`Organization not found for Clerk ID: ${clerkOrganizationId}`);
+        return;
+      }
+
+      // Extract roles from Clerk's organization metadata
+      const roles = organizationMetadata?.roles as OrganizationRole[];
+      const defaultRole = organizationMetadata?.defaultRole || 'doctor';
+
+      if (roles && Array.isArray(roles)) {
+        // Validate roles before saving
+        const validRoles = roles.filter(role => 
+          role.name && 
+          this.isValidRolePermissions(role.permissions)
+        );
+
+        if (validRoles.length > 0) {
+          await this.organizationRepository.update(
+            { clerkOrganizationId },
+            {
+              roles: validRoles,
+              defaultRole,
+              publicMetadata: organizationMetadata,
+            }
+          );
+          
+          console.log(`Synced ${validRoles.length} roles for organization: ${organization.name}`);
+        } else {
+          console.warn(`No valid roles found in metadata for organization: ${organization.name}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing organization roles:', error);
+    }
+  }
+
+  /**
+   * Get patients access filter based on user context
+   */
+  getPatientsAccessFilter(userContext: UserOrganizationContext, userId: number) {
+    if (!userContext.isOrganizationUser) {
+      // Non-organization users can only see their own patients
+      return { doctorId: userId };
+    }
+
+    if (userContext.canAccessOrganizationData) {
+      // Staff and Admin can see all organization patients
+      return { organizationWide: true };
+    }
+
+    // Doctors in organization can only see their own patients
+    return { doctorId: userId };
+  }
+
+  /**
+   * Get appointments access filter based on user context
+   */
+  getAppointmentsAccessFilter(userContext: UserOrganizationContext, userId: number) {
+    const filter: any = {};
+
+    if (!userContext.isOrganizationUser) {
+      // Non-organization users can only see their own appointments
+      filter.doctorId = userId;
+      return filter;
+    }
+
+    if (userContext.canAccessOrganizationData) {
+      // Staff and Admin can see all organization appointments
+      filter.organizationWide = true;
+    } else {
+      // Doctors in organization can only see their own appointments
+      filter.doctorId = userId;
+    }
+
+    // Doctors get today-only restriction
+    if (userContext.canAccessTodayOnlyData) {
+      filter.todayOnly = true;
+    }
+
+    return filter;
+  }
+
+  /**
+   * Get sessions access filter based on user context  
+   */
+  getSessionsAccessFilter(userContext: UserOrganizationContext, userId: number) {
+    if (!userContext.isOrganizationUser) {
+      // Non-organization users can only see their own sessions
+      return { userId };
+    }
+
+    if (userContext.canAccessOrganizationData) {
+      // Staff and Admin can see all organization sessions
+      return { organizationWide: true };
+    }
+
+    // Doctors in organization can only see their own sessions
+    return { userId };
+  }
+
+  /**
+   * Check if user can create/edit patients
+   */
+  canManagePatients(userContext: UserOrganizationContext): boolean {
+    if (!userContext.isOrganizationUser) {
+      return true; // Non-organization users can manage their patients
+    }
+
+    // In organization: Admin, Staff, and Doctors can manage patients
+    return [DefaultRoleEnum.ADMIN, DefaultRoleEnum.STAFF, DefaultRoleEnum.DOCTOR]
+      .includes(userContext.role as DefaultRoleEnum);
+  }
+
+  /**
+   * Check if user can create/edit appointments
+   */
+  canManageAppointments(userContext: UserOrganizationContext): boolean {
+    if (!userContext.isOrganizationUser) {
+      return true; // Non-organization users can manage their appointments
+    }
+
+    // In organization: Admin, Staff, and Doctors can manage appointments
+    return [DefaultRoleEnum.ADMIN, DefaultRoleEnum.STAFF, DefaultRoleEnum.DOCTOR]
+      .includes(userContext.role as DefaultRoleEnum);
+  }
+
+  /**
+   * Get organization users filter (for getting doctors list etc.)
+   */
+  getOrganizationUsersFilter(userContext: UserOrganizationContext) {
+    if (!userContext.isOrganizationUser) {
+      return null; // Non-organization users don't see other users
+    }
+
+    return {
+      clerkOrganizationId: userContext.organizationId
+    };
+  }
+}
