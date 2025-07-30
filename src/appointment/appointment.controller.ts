@@ -24,7 +24,7 @@ export class AppointmentController {
   @Put('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update appointment')
-  @Permissions(PermissionEnum.VIEW_APPOINTMENT)
+  @Permissions(PermissionEnum.CREATE_APPOINTMENT)
   async updateAppointment(@Param('id', ValidateId) appointmentId: number, @Body() reqBody: UpdateAppointmentDto, @Req() req: Request) {
     return await this.appointmentService.updateAppointment(appointmentId, reqBody, +req.user.id);
   }
