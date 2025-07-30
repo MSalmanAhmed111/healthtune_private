@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Req, UploadedFile } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
-import { ApiMessageData } from '@types';
+import { ApiMessageData, PermissionEnum } from '@types';
 import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
 
 @ApiTags('Sessions')
 @Controller('session')
@@ -13,6 +14,7 @@ export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
 
   @Post('/')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new session')
   async createSession(@Body() reqBody: CreateSessionDto, @Req() req: Request): Promise<ApiMessageData> {
@@ -20,6 +22,7 @@ export class SessionController {
   }
 
   @Put('/details/:id')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.CREATED)
   @FileUpload('sessionAudio')
   @SwaggerApiResponse('Create a new session')
@@ -28,6 +31,7 @@ export class SessionController {
   }
 
   @Put('/:id')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
   async updateSessionStatus(@Param('id', ValidateId) sessionId: number, @Body() updateSessionDto: UpdateSessionDto, @Req() req: Request) {
@@ -35,6 +39,7 @@ export class SessionController {
   }
 
   @Put('/:id/note')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Add a note to a session')
   async addNoteToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
@@ -42,6 +47,7 @@ export class SessionController {
   }
 
   @Put('/:id/audio-file')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @FileUpload('audioFile')
   @SwaggerApiResponse('Upload session audio file')
@@ -50,6 +56,7 @@ export class SessionController {
   }
 
   @Put('/:id/transcript')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Add transcript to a session')
   async addTranscriptToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddTranscriptDto) {
@@ -57,6 +64,7 @@ export class SessionController {
   }
 
   @Put('/:id/doctor-note')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Add a doctor note to a session')
   async addDoctorNotesToSession(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
@@ -64,6 +72,7 @@ export class SessionController {
   }
 
   @Put('/:id/diagnosis-codes')
+  @Permissions(PermissionEnum.CREATE_PATIENT_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Add diagnosis codes to a session')
   async addDiagnosisCodes(@Param('id', ValidateId) sessionId: number, @Body() reqBody: AddNoteDto) {
@@ -71,6 +80,7 @@ export class SessionController {
   }
 
   @Get('/')
+  @Permissions(PermissionEnum.VIEW_ALL_SESSIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user sessions')
   async getUserSessions(@Query() queryParams: GetSessionsDto, @Req() req: Request) {
@@ -78,6 +88,7 @@ export class SessionController {
   }
 
   @Get('/:id')
+  @Permissions(PermissionEnum.VIEW_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
   async getUserSession(@Param('id', ValidateId) sessionId: number, @Req() req: Request) {

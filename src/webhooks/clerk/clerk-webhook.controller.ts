@@ -34,24 +34,8 @@ export class ClerkWebhookController {
       console.log(`Received clerk webhook with ID ${event.data.id} and event type of ${event.type}`);
       console.log('Clerk webhook payload: ', payload);
 
-      // Handle different event types
-      switch (event.type) {
-        case 'user.created':
-        case 'user.updated':
-          return this.clerkWebhookService.syncUser(event.data);
-        
-        case 'organization.created':
-        case 'organization.updated':
-          return this.clerkWebhookService.syncOrganization(event.data);
-        
-        case 'organizationMembership.created':
-        case 'organizationMembership.updated':
-        case 'organizationMembership.deleted':
-          return this.clerkWebhookService.syncOrganizationMembership(event);
-        
-        default:
-          return { message: 'Webhook received', event: event.type };
-      }
+      // Handle different event types with centralized logic
+      return this.clerkWebhookService.handleWebhookEvent(event);
     } catch (error) {
       throw new BadRequestException('Invalid Webhook Signature');
     }

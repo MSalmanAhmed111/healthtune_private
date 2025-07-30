@@ -108,13 +108,13 @@ export class AppointmentService {
 
   async getAppointments(getAppointmentDto: GetAppointmentsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
     // Get user and organization context
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId }, 
-      relations: ['organization'] 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization', 'role', 'role.permissions'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
 
     const qb = this.appointmentRepository
@@ -138,7 +138,7 @@ export class AppointmentService {
     }
 
     // Apply organization-based filtering
-    this.dataAccessService.applyAppointmentsOrganizationFilter(qb, userContext, userId, 'appointment');
+    this.dataAccessService.applyAppointmentsOrganizationFilter(qb, user, userId, 'patient');
     if (patientId) qb.andWhere('appointment.patientId = :patientId', { patientId });
     if (status) qb.andWhere('appointment.status = :status', { status });
     if (appointmentType) qb.andWhere('LOWER(appointment.appointmentType) = LOWER(:appointmentType)', { appointmentType });
@@ -172,23 +172,23 @@ export class AppointmentService {
 
   async getAppointment(appointmentId: number, userId: number = undefined): Promise<ApiMessageData> {
     // Get user and organization context
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId }, 
-      relations: ['organization'] 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization', 'role', 'role.permissions'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
-    
-    const appointment = (await this.appointmentRepository.findOne({ 
+    //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+
+    const appointment = (await this.appointmentRepository.findOne({
       where: { id: appointmentId },
-      relations: ['patient', 'patient.doctor']
+      relations: ['patient', 'patient.doctor'],
     })) as Appointment & { doctor?: object; patient?: object };
-    
+
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
 
     // Check if user can access this appointment
-    if (!this.dataAccessService.canAccessAppointment(userContext, appointment.doctorId, userId)) {
+    if (!this.dataAccessService.canAccessResource(user, appointment.doctorId, user.clerkOrganizationId)) {
       throw new ForbiddenException('You do not have permission to access this appointment');
     }
     if (appointment.doctorId) {

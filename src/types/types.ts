@@ -24,12 +24,11 @@ export enum AuthTypeEnum {
   CLERK = 'clerk',
 }
 
-
 export interface StripeProduct {
-  name: string,
-  description: string,
-  images: string[],
-  amount: number
+  name: string;
+  description: string;
+  images: string[];
+  amount: number;
 }
 
 export enum GenderEnum {
@@ -49,3 +48,24 @@ export enum SortEnum {
   DESC = 'DESC',
 }
 
+export enum PermissionEnum {
+  // Appointment
+  CREATE_APPOINTMENT = 'org:appointment:create_appointment',
+  VIEW_ALL_APPOINTMENTS = 'org:appointment:view_all_appointments',
+  VIEW_APPOINTMENT = 'org:appointment:view_appointment',
+
+  // Patients
+  CREATE_PATIENT = 'org:patients:create_patient',
+  VIEW_ALL_PATIENTS = 'org:patients:view_all_patients',
+  VIEW_PATIENT = 'org:patients:view_patient',
+
+  // Session
+  CREATE_PATIENT_SESSION = 'org:session:create',
+  SESSION_HISTORY = 'org:session:session_history',
+  VIEW_ALL_SESSIONS = 'org:session:view_all_sessions',
+  VIEW_SESSION = 'org:session:view_session',
+
+  // Global
+  VIEW_ALL_SESSION_SESSIONS = 'org:view_all_session_sessions',
+  MANAGE_CUSTOMIZATIONS = 'org:view_all_session_sessions:manage_customizations',
+}

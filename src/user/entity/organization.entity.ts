@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
 import { OrganizationRole } from '@types';
+import { Patient } from '@entities';
 
 @Entity('organizations')
 export class Organization {
@@ -25,10 +26,6 @@ export class Organization {
   @Column({ type: 'jsonb', nullable: true })
   privateMetadata?: Record<string, any>;
 
-  // Store organization-specific roles and their permissions
-  @Column({ type: 'jsonb', nullable: true })
-  roles?: OrganizationRole[];
-
   @Column({ type: 'varchar', default: 'doctor' })
   defaultRole: string;
 
@@ -43,4 +40,7 @@ export class Organization {
 
   @OneToMany(() => User, (user) => user.organization)
   users: User[];
+
+  @OneToMany(() => Patient, (patient) => patient.organization)
+  patients: Patient[];
 }

@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete } from '@nestjs/common';
 import { MacrosService } from './macros.service';
 import { ApiTags } from '@nestjs/swagger';
-import { ApiMessageData } from '@types';
+import { ApiMessageData, PermissionEnum } from '@types';
 import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
 
 @ApiTags('Macros')
 @Controller('macros')
@@ -12,6 +13,7 @@ export class MacrosController {
   constructor(private readonly macrosService: MacrosService) {}
 
   @Post('/')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new macro')
   async createMacro(@Body() reqBody: CreateMacroDto): Promise<ApiMessageData> {
@@ -19,6 +21,7 @@ export class MacrosController {
   }
 
   @Put('/:id')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update macro')
   async updateMacro(@Param('id', ValidateId) macroId: number, @Body() reqBody: UpdateMacroDto) {
@@ -40,6 +43,7 @@ export class MacrosController {
   }
 
   @Delete('/:id')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete a macro by ID')
   async deleteMacros(@Param('id', ValidateId) macroId: number) {

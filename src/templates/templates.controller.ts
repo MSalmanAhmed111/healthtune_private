@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete, Req } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 import { ApiTags } from '@nestjs/swagger';
-import { ApiMessageData } from '@types';
+import { ApiMessageData, PermissionEnum } from '@types';
 import { CreateTemplateDto, PaginationQueryDto, UpdateTemplateDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
 
 @ApiTags('Templates')
 @Controller('template')
@@ -13,6 +14,7 @@ export class TemplatesController {
   constructor(private readonly templatesService: TemplatesService) {}
 
   @Post('/')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new template')
   async createTemplate(@Body() reqBody: CreateTemplateDto, @Req() req: Request): Promise<ApiMessageData> {
@@ -20,6 +22,7 @@ export class TemplatesController {
   }
 
   @Put('/:id')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update template')
   async updateTemplate(@Param('id', ValidateId) templateId: number, @Body() reqBody: UpdateTemplateDto, @Req() req: Request) {
@@ -41,6 +44,7 @@ export class TemplatesController {
   }
 
   @Delete('/:id')
+  @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete a template by ID')
   async deleteTemplate(@Param('id', ValidateId) templateId: number) {

@@ -63,16 +63,23 @@ export class SessionService {
     if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
 
     if (patientId) {
-      const patient = await this.patientRepository.findOne({ where: { id: patientId, doctorId: userId } });
+      let whereCondition = { id: patientId };
+      let patient = null;
+      if (user.clerkOrganizationId !== null) {
+        patient = await this.patientRepository.findOne({ where: whereCondition });
+      } else {
+        patient = await this.patientRepository.findOne({ where: { ...whereCondition, doctorId: userId } });
+      }
       if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
       patientName = patient.firstName + '' + patient.lastName;
       sex = patient.gender;
     } else if (patientFirstName && patientLastName) {
       if (patientRecordSettings.value) {
-        let mreCount = '0';
-        const patient = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
-        if (patient) mreCount = patient.id.toString();
-        const mreNumber = `MRE-${(mreCount + 1).padStart(7, '0')}`;
+        //let mreCount = '0';
+        let fetchedItem = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
+        let mreCount = fetchedItem.id;
+        //if (patient) mreCount = patient.id.toString();
+        const mreNumber = `MRE-${(mreCount + 1).toString().padStart(7, '0')}`;
         let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex, doctorId: userId });
         createdPatient = await this.patientRepository.save(createdPatient);
         patientId = createdPatient.id;
@@ -123,7 +130,7 @@ export class SessionService {
       let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
       if (transcript) {
         transcript.assemblyId = assemblyId || transcript.assemblyId;
-        transcript.content = content  || transcript.content;
+        transcript.content = content || transcript.content;
       } else {
         if (!assemblyId || !content) {
           throw new BadRequestException(SessionErrorMessages.missingTrancriptFields);
@@ -164,7 +171,6 @@ export class SessionService {
       await this.sessionCostRepository.save(sessionCost);
       session.sessionCosting = sessionCost;
     }
-    
 
     await this.sessionRepository.save(session);
 
@@ -256,16 +262,16 @@ export class SessionService {
 
   async getSessions(getSessionsDto: GetSessionsDto, userId: number = undefined): Promise<ApiMessageDataPagination> {
     // Get user and organization context
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId }, 
-      relations: ['organization'] 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization', 'role', 'role.permissions'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
+    //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page, limit, sort = 'DESC', patientId, startDate, endDate } = getSessionsDto;
-    
-    const qb = this.sessionRepository
+
+    let qb = this.sessionRepository
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.note', 'note')
       .leftJoinAndSelect('session.transcript', 'transcript')
@@ -286,9 +292,9 @@ export class SessionService {
         }),
       );
     }
-    
+
     // Apply organization-based filtering
-    this.dataAccessService.applySessionsOrganizationFilter(qb, userContext, userId, 'session');
+    qb = await this.dataAccessService.applySessionsOrganizationFilter(qb, user, userId, 'patient');
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
 
     if (startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });

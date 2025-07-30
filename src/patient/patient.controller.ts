@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete, Req } from '@nestjs/common';
 import { PatientService } from './patient.service';
 import { ApiTags } from '@nestjs/swagger';
-import { ApiMessageData } from '@types';
+import { ApiMessageData, PermissionEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
 
 @ApiTags('Patient')
 @Controller('patient')
@@ -15,11 +16,13 @@ export class PatientController {
   @Post('/')
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new patient')
+  @Permissions(PermissionEnum.CREATE_PATIENT)
   async createPatient(@Body() reqBody: CreatePatientDto, @Req() req: Request): Promise<ApiMessageData> {
     return await this.patientService.createPatient(reqBody, +req.user.id);
   }
 
   @Put('/:id')
+  @Permissions(PermissionEnum.CREATE_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update patient')
   async updatePatient(@Param('id', ValidateId) patientId: number, @Body() reqBody: UpdatePatientDto) {
@@ -27,6 +30,7 @@ export class PatientController {
   }
 
   @Get('/by-appointment')
+  @Permissions(PermissionEnum.VIEW_ALL_PATIENTS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all patient')
   async getPatientsByAppointment(@Query() queryParams: GetPatientsDto, @Req() req: Request) {
@@ -34,6 +38,7 @@ export class PatientController {
   }
 
   @Get('/')
+  @Permissions(PermissionEnum.VIEW_ALL_PATIENTS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all patient')
   async getPatients(@Query() queryParams: GetPatientsDto, @Req() req: Request) {
@@ -41,6 +46,7 @@ export class PatientController {
   }
 
   @Get('/:id')
+  @Permissions(PermissionEnum.VIEW_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a patient by ID')
   async getPatient(@Param('id', ValidateId) patientId: number, @Req() req: Request) {
@@ -48,6 +54,7 @@ export class PatientController {
   }
 
   @Delete('/:id')
+  @Permissions(PermissionEnum.VIEW_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete a patient by ID')
   async deletePatient(@Param('id', ValidateId) patientId: number, @Req() req: Request) {

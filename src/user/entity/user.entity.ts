@@ -1,4 +1,4 @@
-import { EDocument, EDocumentIssuance, Patient, QuickNotes, Session, Setting, SubscriptionHistory, UserDevices, UserPlan } from '@entities';
+import { EDocument, EDocumentIssuance, Patient, QuickNotes, Role, Session, Setting, SubscriptionHistory, UserDevices, UserPlan } from '@entities';
 import { fileObject, DefaultRoleEnum, RolePermissions } from '@types';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { Organization } from './organization.entity';
@@ -61,16 +61,13 @@ export class User {
   @Column({ type: 'varchar', nullable: true, default: null })
   clerkOrganizationId?: string;
 
-  @Column({ type: 'varchar', default: DefaultRoleEnum.DOCTOR })
-  role: string;
 
-  // Store organization role name (can be different from system role)
-  @Column({ type: 'varchar', nullable: true, default: null })
-  organizationRole?: string;
+  @ManyToOne(() => Role, (role) => role.users, { nullable: true })
+  @JoinColumn({ name: 'roleId' })
+  role?: Role;
 
-  // Store custom permissions for this user (from Clerk membership metadata)
-  @Column({ type: 'jsonb', nullable: true })
-  rolePermissions?: RolePermissions;
+  @Column({ type: 'integer', nullable: true, default: null })
+  roleId?: number;
 
   @CreateDateColumn()
   createdAt: Date;

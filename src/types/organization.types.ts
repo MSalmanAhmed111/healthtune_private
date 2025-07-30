@@ -1,6 +1,8 @@
+import { Role, Permission } from '@entities';
+
 export enum DefaultRoleEnum {
   ADMIN = 'admin',
-  STAFF = 'staff', 
+  STAFF = 'staff',
   DOCTOR = 'doctor',
 }
 
@@ -50,11 +52,10 @@ export interface OrganizationMetadata {
 }
 
 export interface UserOrganizationContext {
-  userId: string;
-  organizationId?: string;
-  role: string;
-  permissions: RolePermissions;
+  userId: number;
+  organizationId?: number;
+  clerkOrganizationId?: string;
+  role: Role | null;
+  permissions: Permission[] | null;
   isOrganizationUser: boolean;
-  canAccessOrganizationData: boolean;
-  canAccessTodayOnlyData: boolean;
 }

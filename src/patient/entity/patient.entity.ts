@@ -1,5 +1,5 @@
 import { Entity, Column, OneToMany, JoinColumn, ManyToOne, Unique } from 'typeorm';
-import { Address, Appointment, BaseEntity, EDocumentIssuance, Session, User } from 'src/entity';
+import { Address, Appointment, BaseEntity, EDocumentIssuance, Organization, Session, User } from 'src/entity';
 import { GenderEnum, BloodTypeEnum, MaritalStatusEnum, fileObject, InsuranceTypeEnum, LanguageEnum } from '@types';
 
 export class PatientMedicalDetailsEntity {
@@ -148,4 +148,11 @@ export class Patient extends BaseEntity {
 
   @OneToMany(() => Appointment, (appointment) => appointment.patient)
   appointments: Appointment[];
+
+  @ManyToOne(() => Organization, (organization) => organization.patients, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'organizationId' })
+  organization: Organization;
+
+  @Column({ type: 'integer', nullable: true, default: null })
+  organizationId?: number;
 }
