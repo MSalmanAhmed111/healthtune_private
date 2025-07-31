@@ -209,7 +209,7 @@ export class UserService {
       .leftJoinAndSelect('userPlan.plan', 'plan')
       .leftJoinAndSelect('userPlan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
-      .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature');
 
     if (banned === false || banned === true) qb.andWhere('user.banned = :banned', { banned });
 
@@ -302,6 +302,10 @@ export class UserService {
 
   async getUserStats(reqQueryParams: GetSessionStatsDto, userId: number = undefined): Promise<ApiMessageData> {
     let { startDate, endDate } = reqQueryParams;
+    let user = null;
+    if (userId) {
+      user = await this.userRepository.findOne({ where: { id: userId } });
+    }
 
     if (endDate) {
       endDate = new Date(endDate);
@@ -311,20 +315,21 @@ export class UserService {
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
 
     const baseWhere: any = {
-      ...(userId && { userId }),
+      ...(user && user.clerkOrganizationId ? { patient: { organizationId: user.organizationId } } : { userId }),
       ...(startDate && endDate ? { createdAt: Between(startDate, endDate) } : {}),
     };
 
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
 
-    let query = this.sessionRepository.createQueryBuilder('session').select('session.status', 'status').addSelect('COUNT(*)', 'count');
+    let query = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.patient', 'patient').select('session.status', 'status').addSelect('COUNT(*)', 'count');
 
     if (startDate && endDate) {
       query = query.where('session.updatedAt BETWEEN :startDate AND :endDate', { startDate, endDate });
     }
 
     if (userId) {
-      query = query.andWhere('session.userId = :userId', { userId });
+      if (user && user.clerkOrganizationId) query = query.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
+      else query = query.andWhere('session.userId = :userId', { userId });
     }
 
     query = query.groupBy('session.status');
@@ -343,14 +348,16 @@ export class UserService {
       {} as Record<string, number>,
     );
 
-    let durationQuery = this.sessionRepository.createQueryBuilder('session').select('SUM(session.duration)', 'total');
+    let durationQuery = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.patient', 'patient').select('SUM(session.duration)', 'total');
 
     if (startDate && endDate) {
       durationQuery = durationQuery.where('session.createdAt BETWEEN :startDate AND :endDate', { startDate, endDate });
     }
 
     if (userId) {
-      durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
+      //durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
+      if (user && user.clerkOrganizationId) durationQuery = durationQuery.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
+      else durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
     }
 
     const totalDurationResult = await durationQuery.getRawOne();
@@ -365,11 +372,12 @@ export class UserService {
     todayEnd.setHours(23, 59, 59, 999);
 
     const todayWhere: any = {
-      ...(userId && { doctorId: userId }),
+      //...(userId && { doctorId: userId }),
+      ...(user && user.clerkOrganizationId ? { patient: { organizationId: user.organizationId } } : { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
 
-    const todayAppointments = await this.appointmentRepository.count({ where: todayWhere });
+    const todayAppointments = await this.appointmentRepository.count({ where: todayWhere, relations: ['patient'] });
 
     return {
       message: SuccessResponseMessages.successGeneral,
