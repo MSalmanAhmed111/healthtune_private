@@ -24,7 +24,7 @@ export class AppointmentService {
   async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, color, duration } = reqBody;
 
-    let where: any;
+    let where: any={};
 
     if (doctorId) {
       let doctor = await this.userRepository.findOne({ where: { id: doctorId } });
@@ -32,7 +32,8 @@ export class AppointmentService {
 
       const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: new Date(appointmentDate), doctorId } });
       if (existingDoctorAppointment) throw new BadRequestException(AppointmentErrorMessages.doctorAppointmentAlreadyScheduled);
-      if (doctor.clerkOrganizationId) where = { id: patientId, clerkOrganizationId: doctor.clerkOrganizationId };
+      if (doctor.clerkOrganizationId) where = { id: patientId, organizationId: doctor.organizationId };
+      else where = { id: patientId, doctorId: doctor.id };
     } else {
       where = { id: patientId };
     }
@@ -63,7 +64,7 @@ export class AppointmentService {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, status, color, duration } = reqBody;
 
     let where: any;
-    const appointment = await this.appointmentRepository.findOne({ where });
+    const appointment = await this.appointmentRepository.findOne({ where:{ id: appointmentId } });
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
 
     if (doctorId && doctorId !== appointment.doctorId) {
@@ -72,7 +73,8 @@ export class AppointmentService {
 
       const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: appointmentDate ? new Date(appointmentDate) : new Date(appointment.appointmentDate), doctorId: doctorId, id: Not(appointmentId) } });
       if (existingDoctorAppointment) throw new BadRequestException(AppointmentErrorMessages.doctorAppointmentAlreadyScheduled);
-      if (doctor.clerkOrganizationId) where = { id: patientId, clerkOrganizationId: doctor.clerkOrganizationId };
+      if (doctor.clerkOrganizationId) where = { id: patientId, organizationId: doctor.organizationId };
+      else where = { id: patientId, doctorId: doctor.id };
     } else {
       where = { id: patientId };
     }
