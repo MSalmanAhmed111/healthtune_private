@@ -262,7 +262,11 @@ export class ClerkWebhookService {
     }
     userPlan = await this.userPlanRepository.save(userPlan);
     user.userPlanId = userPlan.id;
-    await this.userRepository.save(user);
+    await this.userRepository.save({
+      id: user.id,
+      userPlanId: userPlan.id,
+    });
+    //await this.userRepository.save(user);
     return { message: SuccessResponseMessages.successGeneral, data: user };
   }
 
