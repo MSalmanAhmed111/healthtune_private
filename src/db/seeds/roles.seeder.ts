@@ -2,7 +2,7 @@ import { DataSource } from 'typeorm';
 import { Seeder, SeederFactoryManager } from 'typeorm-extension';
 import { Role } from '../../entity/role.entity';
 import { Permission } from '../../entity/permissions.entity';
-import { PermissionEnum } from '../../types/types';
+import { PermissionEnum, UserRolesEnum } from '../../types/types';
 
 export default class RolesSeeder implements Seeder {
   // Define permissions that can be easily updated
@@ -76,7 +76,7 @@ export default class RolesSeeder implements Seeder {
   // Define roles with their permissions that can be easily updated
   private readonly ROLES = [
     {
-      key: 'org:admin',
+      key: UserRolesEnum.ADMIN,
       name: 'Administrator',
       description: 'Full administrative access to the organization',
       permissions: [
@@ -96,7 +96,7 @@ export default class RolesSeeder implements Seeder {
     },
     {
       key: 'org:staff',
-      name: 'Staff',
+      name: UserRolesEnum.STAFF,
       description: 'Staff member with organization-wide access',
       permissions: [
         PermissionEnum.VIEW_ALL_PATIENTS,
@@ -114,14 +114,9 @@ export default class RolesSeeder implements Seeder {
     },
     {
       key: 'org:doctor',
-      name: 'Doctor',
-      description: 'Doctor with limited access to own patients and today\'s appointments',
-      permissions: [
-        PermissionEnum.VIEW_PATIENT,
-        PermissionEnum.VIEW_APPOINTMENT,
-        PermissionEnum.CREATE_PATIENT_SESSION,
-        PermissionEnum.VIEW_SESSION,
-      ],
+      name: UserRolesEnum.DOCTOR,
+      description: "Doctor with limited access to own patients and today's appointments",
+      permissions: [PermissionEnum.VIEW_PATIENT, PermissionEnum.VIEW_APPOINTMENT, PermissionEnum.CREATE_PATIENT_SESSION, PermissionEnum.VIEW_SESSION],
     },
     // You can easily add more roles here
     // {
@@ -136,10 +131,7 @@ export default class RolesSeeder implements Seeder {
     // },
   ];
 
-  public async run(
-    dataSource: DataSource,
-    factoryManager: SeederFactoryManager,
-  ): Promise<any> {
+  public async run(dataSource: DataSource, factoryManager: SeederFactoryManager): Promise<any> {
     const roleRepository = dataSource.getRepository(Role);
     const permissionRepository = dataSource.getRepository(Permission);
 
@@ -166,9 +158,7 @@ export default class RolesSeeder implements Seeder {
   /**
    * Create or update permissions
    */
-  private async createOrUpdatePermissions(
-    permissionRepository: any,
-  ): Promise<Map<string, Permission>> {
+  private async createOrUpdatePermissions(permissionRepository: any): Promise<Map<string, Permission>> {
     const permissionsMap = new Map<string, Permission>();
 
     for (const permData of this.PERMISSIONS) {
@@ -192,12 +182,12 @@ export default class RolesSeeder implements Seeder {
       } else {
         // Update existing permission (in case name/description changed)
         let hasChanges = false;
-        
+
         if (permission.name !== permData.name) {
           permission.name = permData.name;
           hasChanges = true;
         }
-        
+
         if (permission.description !== permData.description) {
           permission.description = permData.description;
           hasChanges = true;
@@ -220,10 +210,7 @@ export default class RolesSeeder implements Seeder {
   /**
    * Create or update roles with their permissions
    */
-  private async createOrUpdateRoles(
-    roleRepository: any,
-    permissionsMap: Map<string, Permission>,
-  ): Promise<void> {
+  private async createOrUpdateRoles(roleRepository: any, permissionsMap: Map<string, Permission>): Promise<void> {
     for (const roleData of this.ROLES) {
       console.log(`👤 Processing role: ${roleData.name} (${roleData.key})`);
 
@@ -246,12 +233,12 @@ export default class RolesSeeder implements Seeder {
       } else {
         // Update existing role (in case name/description changed)
         let hasChanges = false;
-        
+
         if (role.name !== roleData.name) {
           role.name = roleData.name;
           hasChanges = true;
         }
-        
+
         if (role.description !== roleData.description) {
           role.description = roleData.description;
           hasChanges = true;
@@ -284,23 +271,20 @@ export default class RolesSeeder implements Seeder {
       }
 
       // Check if permissions need to be updated
-      const currentPermissionKeys = role.permissions?.map(p => p.key) || [];
-      const newPermissionKeys = rolePermissions.map(p => p.key);
-      
-      const permissionsChanged = 
-        currentPermissionKeys.length !== newPermissionKeys.length ||
-        currentPermissionKeys.some(key => !newPermissionKeys.includes(key)) ||
-        newPermissionKeys.some(key => !currentPermissionKeys.includes(key));
+      const currentPermissionKeys = role.permissions?.map((p) => p.key) || [];
+      const newPermissionKeys = rolePermissions.map((p) => p.key);
+
+      const permissionsChanged = currentPermissionKeys.length !== newPermissionKeys.length || currentPermissionKeys.some((key) => !newPermissionKeys.includes(key)) || newPermissionKeys.some((key) => !currentPermissionKeys.includes(key));
 
       if (permissionsChanged) {
         // Update role permissions
         role.permissions = rolePermissions;
         await roleRepository.save(role);
         console.log(`🔗 Updated permissions for role ${roleData.name}: ${rolePermissions.length} permissions assigned`);
-        
+
         // Log permission details
         if (rolePermissions.length > 0) {
-          console.log(`   Permissions: ${rolePermissions.map(p => p.name).join(', ')}`);
+          console.log(`   Permissions: ${rolePermissions.map((p) => p.name).join(', ')}`);
         }
       } else {
         console.log(`📋 Permissions already up to date for role: ${roleData.name}`);

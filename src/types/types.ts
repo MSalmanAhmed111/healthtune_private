@@ -49,7 +49,7 @@ export enum SortEnum {
 }
 
 export enum UserRolesEnum {
-  ADMIN = 'Administrator',
+  ADMIN = 'Admin',
   STAFF = 'Staff',
   DOCTOR = 'Doctor',
 }
