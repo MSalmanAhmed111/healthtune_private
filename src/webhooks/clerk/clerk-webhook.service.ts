@@ -856,7 +856,7 @@ export class ClerkWebhookService {
 
     // Find existing role
     let role = await this.roleRepository.findOne({
-      where: { clerkRoleId },
+      where: [{ clerkRoleId }, { key }, {name}],
       relations: ['permissions'],
     });
 
@@ -865,6 +865,8 @@ export class ClerkWebhookService {
       role.key = key ?? role.key;
       role.name = name ?? role.name;
       role.description = description ?? role.description;
+      role.clerkRoleId = clerkRoleId ?? role.clerkRoleId;
+
     } else {
       // Create new role
       role = this.roleRepository.create({
