@@ -20,7 +20,7 @@ export class DataAccessService {
     const hasViewAllPatients = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
     if (user && user.clerkOrganizationId && hasViewPatient && hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
-        orgId: user.clerkOrganizationId,
+        orgId: user.organizationId,
       });
     }
 

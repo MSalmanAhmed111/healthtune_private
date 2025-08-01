@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, HttpStatus, Req, Body, Put, Param, Query } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SwaggerApiResponse } from '@decorators';
-import { GetSessionStatsDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
+import { GetSessionStatsDto, PaginationDto, GetUsersDto, RedirectionUrlDto, UpdateCurrentUserDto } from '@dtos';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ValidateId } from '@pipes/validate-id.pipe';
@@ -10,8 +10,7 @@ import { ApiMessageData } from '@types';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) { }
-
+  constructor(private readonly userService: UserService) {}
 
   @Get('/stats')
   @HttpCode(HttpStatus.OK)
@@ -34,6 +33,13 @@ export class UserController {
     return await this.userService.getUser(+req.user.id);
   }
 
+  @Get('/organization')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user')
+  async getOrganizationDoctors(@Query() queryParams: GetUsersDto, @Req() req: Request) {
+    return await this.userService.getOrganizationDoctors(queryParams, +req.user.id);
+  }
+
   @Put('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update current user')
@@ -48,7 +54,7 @@ export class UserController {
     return await this.userService.cancelSubscription(+req.user.id);
   }
 
-  @Get("/plan/subscription-history")
+  @Get('/plan/subscription-history')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get current user subscription history')
   async getUserSubscriptionHistory(@Req() req: Request, @Query() queryParams: PaginationDto): Promise<ApiMessageData> {
@@ -62,18 +68,17 @@ export class UserController {
     return await this.userService.selectPlanForUser(+req.user.id, planId, reqBody);
   }
 
-  @Get("/card")
+  @Get('/card')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get current user card details')
   async getUserCardDetails(@Req() req: Request): Promise<ApiMessageData> {
     return await this.userService.getUserCardDetails(+req.user.id);
   }
 
-  @Put("/card")
+  @Put('/card')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update current user card details')
   async addUpdateCard(@Req() req: Request, @Body() reqBody: RedirectionUrlDto): Promise<ApiMessageData> {
     return await this.userService.addUpdateCard(+req.user.id, reqBody);
   }
-
 }

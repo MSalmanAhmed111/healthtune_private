@@ -48,6 +48,12 @@ export enum SortEnum {
   DESC = 'DESC',
 }
 
+export enum UserRolesEnum {
+  ADMIN = 'admin',
+  STAFF = 'staff',
+  DOCTOR = 'doctor',
+}
+
 export enum PermissionEnum {
   // Appointment
   CREATE_APPOINTMENT = 'org:appointment:create_appointment',

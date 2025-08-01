@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException, 
 import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum, PermissionEnum } from '@types';
+import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum, PermissionEnum, UserRolesEnum } from '@types';
 import { Repository, Brackets, Between } from 'typeorm';
 import { GetSessionStatsDto, GetUsersDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
@@ -150,6 +150,72 @@ export class UserService {
       });
     }
     return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } } };
+  }
+
+  async getOrganizationDoctors(getUsersDto: GetUsersDto, userId: number): Promise<ApiMessageDataPagination> {
+    const { query, banned = false, page, limit } = getUsersDto;
+    const skip = (page - 1) * limit;
+    let fetchedUser = await this.userRepository.createQueryBuilder('user').select(this.userFields).where('user.id = :userId', { userId }).getOne();
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userPlan', 'userPlan')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('role.permissions', 'permissions')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
+      .leftJoinAndSelect('userPlan.usage', 'usage')
+      .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature');
+
+    if (banned === false || banned === true) qb.andWhere('user.banned = :banned', { banned });
+
+    if (query) {
+      qb.andWhere(
+        new Brackets((qb) => {
+          qb.orWhere('user.firstName ILIKE :query', { query: `%${query}%` })
+            .orWhere('user.lastName ILIKE :query', { query: `%${query}%` })
+            .orWhere('user.username ILIKE :query', { query: `%${query}%` })
+            .orWhere('user.email ILIKE :query', { query: `%${query}%` });
+        }),
+      );
+    }
+    if (fetchedUser.role.name === UserRolesEnum.DOCTOR) qb.andWhere('role.name = :roleName', { roleName: UserRolesEnum.DOCTOR });
+    else if (fetchedUser.clerkOrganizationId) qb.andWhere('user.clerkOrganizationId = :clerkOrganizationId', { clerkOrganizationId: fetchedUser.clerkOrganizationId });
+
+    qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
+
+    const [items, total] = await qb.select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'userPlan', 'plan', 'usage', 'planFeatureProperty', 'feature']).getManyAndCount();
+
+    const lastPage = Math.ceil(total / limit);
+
+    let data = [];
+
+    // for (const fetchedUser of items) {
+    //   if (fetchedUser.profileImage) {
+    //     const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
+    //     if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
+    //   }
+    //   const sessionCount = await this.sessionRepository.count({ where: { userId: fetchedUser.id } });
+    //   const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
+    //   if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
+    //     fetchedUser.userPlan.usage.forEach((usage) => {
+    //       const newUsage = {
+    //         featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
+    //         left: usage?.usageCount || null,
+    //         total: usage?.planFeatureProperty?.properties?.limit || null,
+    //       };
+    //       usageArray.push(newUsage);
+    //     });
+    //   }
+    //   data.push({ ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray }, sessionCount });
+    // }
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: items,
+      total,
+      page,
+      lastPage,
+    };
   }
 
   async getUserSubscriptionHistory(userId: number, paginationDto: PaginationDto): Promise<ApiMessageDataPagination> {
