@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SelectQueryBuilder } from 'typeorm';
 import { Patient, User, Appointment, Session } from '@entities';
 import { RoleBasedAccessService } from './role-based-access.service';
-import { UserOrganizationContext } from '@types';
+import { PermissionEnum, UserOrganizationContext } from '@types';
 import moment from 'moment-timezone';
 
 @Injectable()
@@ -13,18 +13,20 @@ export class DataAccessService {
    * Apply organization filters to patients query based on user role permissions
    */
   async applyPatientsOrganizationFilter(query: SelectQueryBuilder<Patient>, user: any, userId: number, alias = 'patient'): Promise<SelectQueryBuilder<Patient>> {
-    const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
-    console.log({ context });
+    // const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
+    // console.log({ context });
     // If user has organization-wide access
-    if (context.isOrganizationUser) {
+    const hasViewPatient = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_PATIENT);
+    const hasViewAllPatients = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
+    if (user && user.clerkOrganizationId && hasViewPatient && hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
-        orgId: context.organizationId,
+        orgId: user.clerkOrganizationId,
       });
     }
 
     // If user is restricted to their own patients only (no organization or restricted role)
-    return query.andWhere(`${alias}.doctorId = :userId`, {
-      userId: context.userId,
+    return query.andWhere(`patient.doctorId = :userId`, {
+      userId: user.id,
     });
   }
 
@@ -32,12 +34,13 @@ export class DataAccessService {
    * Apply organization filters to appointments query based on user role permissions
    */
   async applyAppointmentsOrganizationFilter(query: SelectQueryBuilder<Appointment>, user: User, userId: number, alias = 'patient'): Promise<SelectQueryBuilder<Appointment>> {
-    const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
-
+    //const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
+    const hasViewAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_APPOINTMENT);
+    const hasViewAllAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_APPOINTMENTS);
     // If user has organization-wide access
-    if (context.isOrganizationUser) {
+    if (user && user.clerkOrganizationId && hasViewAppointment && hasViewAllAppointment) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
-        orgId: context.organizationId,
+        orgId: user.organizationId,
       });
 
       // // If role requires today-only data, apply date filter
@@ -56,8 +59,8 @@ export class DataAccessService {
     }
 
     // Default: user can only see their own appointments
-    query = query.andWhere(`${alias}.userId = :userId`, {
-      userId: context.userId,
+    query = query.andWhere(`appointment.doctorId = :userId`, {
+      userId: user.id,
     });
 
     // If role requires today-only data, apply date filter
@@ -79,12 +82,15 @@ export class DataAccessService {
    * Apply organization filters to sessions query based on user role permissions
    */
   async applySessionsOrganizationFilter(query: SelectQueryBuilder<Session>, user: User, userId: number, alias = 'session'): Promise<SelectQueryBuilder<Session>> {
-    const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
+    //const context = await this.roleBasedAccessService.getUserOrganizationContext(user);
+
+    const hasViewSession = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_SESSION);
+    const hasViewAllSessions = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
 
     // If user has organization-wide access
-    if (context.isOrganizationUser) {
+    if (user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
-        orgId: context.organizationId,
+        orgId: user.organizationId,
       });
 
       // If role requires today-only data, apply date filter
@@ -103,8 +109,8 @@ export class DataAccessService {
     }
 
     // Default: user can only see their own sessions
-    query = query.andWhere(`${alias}.userId = :userId`, {
-      userId: context.userId,
+    query = query.andWhere(`session.userId = :userId`, {
+      userId: user.id,
     });
 
     // If role requires today-only data, apply date filter

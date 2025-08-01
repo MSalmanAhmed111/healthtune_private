@@ -23,8 +23,8 @@ export class AppointmentService {
 
   async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, color, duration } = reqBody;
-
-    let where: any={};
+    if (reqBody.doctorId) doctorId = reqBody.doctorId;
+    let where: any = {};
 
     if (doctorId) {
       let doctor = await this.userRepository.findOne({ where: { id: doctorId } });
@@ -62,9 +62,9 @@ export class AppointmentService {
   }
   async updateAppointment(appointmentId: number, reqBody: UpdateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, status, color, duration } = reqBody;
-
+    if (reqBody.doctorId) doctorId = reqBody.doctorId;
     let where: any;
-    const appointment = await this.appointmentRepository.findOne({ where:{ id: appointmentId } });
+    const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
 
     if (doctorId && doctorId !== appointment.doctorId) {

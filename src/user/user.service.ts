@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException, 
 import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan } from '@entities';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum } from '@types';
+import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum, PermissionEnum } from '@types';
 import { Repository, Brackets, Between } from 'typeorm';
 import { GetSessionStatsDto, GetUsersDto, PaginationDto, RedirectionUrlDto, UpdateCurrentUserDto, UpdateUserDto } from '@dtos';
 import { ClerkClient } from '@clerk/backend';
@@ -304,7 +304,7 @@ export class UserService {
     let { startDate, endDate } = reqQueryParams;
     let user = null;
     if (userId) {
-      user = await this.userRepository.findOne({ where: { id: userId } });
+      user = await this.userRepository.findOne({ where: { id: userId }, relations: ['role', 'role.permissions'] });
     }
 
     if (endDate) {
@@ -314,11 +314,15 @@ export class UserService {
 
     if (reqQueryParams.userId) userId = reqQueryParams.userId;
 
+    const hasViewSession = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_SESSION);
+    const hasViewAllSessions = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
+    const hasViewAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_APPOINTMENT);
+    const hasViewAllAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_APPOINTMENTS);
+
     const baseWhere: any = {
-      ...(user && user.clerkOrganizationId ? { patient: { organizationId: user.organizationId } } : { userId }),
+      ...(user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions ? { patient: { organizationId: user.organizationId } } : { userId }),
       ...(startDate && endDate ? { createdAt: Between(startDate, endDate) } : {}),
     };
-
     const sessionCount = await this.sessionRepository.count({ where: baseWhere });
 
     let query = this.sessionRepository.createQueryBuilder('session').leftJoinAndSelect('session.patient', 'patient').select('session.status', 'status').addSelect('COUNT(*)', 'count');
@@ -328,7 +332,7 @@ export class UserService {
     }
 
     if (userId) {
-      if (user && user.clerkOrganizationId) query = query.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
+      if (user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions) query = query.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
       else query = query.andWhere('session.userId = :userId', { userId });
     }
 
@@ -356,7 +360,7 @@ export class UserService {
 
     if (userId) {
       //durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
-      if (user && user.clerkOrganizationId) durationQuery = durationQuery.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
+      if (user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions) durationQuery = durationQuery.andWhere('patient.organizationId = :organizationId', { organizationId: user.organizationId });
       else durationQuery = durationQuery.andWhere('session.userId = :userId', { userId });
     }
 
@@ -373,7 +377,7 @@ export class UserService {
 
     const todayWhere: any = {
       //...(userId && { doctorId: userId }),
-      ...(user && user.clerkOrganizationId ? { patient: { organizationId: user.organizationId } } : { doctorId: userId }),
+      ...(user && user.clerkOrganizationId && hasViewAppointment && hasViewAllAppointment ? { patient: { organizationId: user.organizationId } } : { doctorId: userId }),
       createdAt: Between(todayStart, todayEnd),
     };
 
