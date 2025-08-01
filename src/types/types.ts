@@ -49,9 +49,9 @@ export enum SortEnum {
 }
 
 export enum UserRolesEnum {
-  ADMIN = 'admin',
-  STAFF = 'staff',
-  DOCTOR = 'doctor',
+  ADMIN = 'Administrator',
+  STAFF = 'Staff',
+  DOCTOR = 'Doctor',
 }
 
 export enum PermissionEnum {

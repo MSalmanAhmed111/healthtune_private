@@ -178,7 +178,7 @@ export class UserService {
         }),
       );
     }
-    if (fetchedUser.role.name === UserRolesEnum.DOCTOR) qb.andWhere('role.name = :roleName', { roleName: UserRolesEnum.DOCTOR });
+    if (fetchedUser.role.key === `org:${UserRolesEnum.DOCTOR}`) qb.andWhere('role.key = :roleKey', { roleKey: `org:${UserRolesEnum.DOCTOR}` });
     else if (fetchedUser.clerkOrganizationId) qb.andWhere('user.clerkOrganizationId = :clerkOrganizationId', { clerkOrganizationId: fetchedUser.clerkOrganizationId });
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
