@@ -153,7 +153,7 @@ export class UserService {
   }
 
   async getOrganizationDoctors(getUsersDto: GetUsersDto, userId: number): Promise<ApiMessageDataPagination> {
-    const { query, banned = false, page, limit } = getUsersDto;
+    const { query, banned = false, page, limit, role } = getUsersDto;
     const skip = (page - 1) * limit;
     let fetchedUser = await this.userRepository.createQueryBuilder('user').select(this.userFields).where('user.id = :userId', { userId }).getOne();
     const qb = this.userRepository
@@ -178,8 +178,10 @@ export class UserService {
         }),
       );
     }
-    if (fetchedUser.role.key === `org:${UserRolesEnum.DOCTOR}`) qb.andWhere('role.key = :roleKey', { roleKey: `org:${UserRolesEnum.DOCTOR}` });
-    else if (fetchedUser.clerkOrganizationId) qb.andWhere('user.clerkOrganizationId = :clerkOrganizationId', { clerkOrganizationId: fetchedUser.clerkOrganizationId });
+    const hasCreateAppointmentPermission = fetchedUser?.role?.permissions?.some((p) => p.key === PermissionEnum.CREATE_APPOINTMENT);
+
+    if (role) qb.andWhere('role.name = :roleName', { roleName: UserRolesEnum.DOCTOR });
+    if (fetchedUser.clerkOrganizationId) qb.andWhere('user.clerkOrganizationId = :clerkOrganizationId', { clerkOrganizationId: fetchedUser.clerkOrganizationId });
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });
 

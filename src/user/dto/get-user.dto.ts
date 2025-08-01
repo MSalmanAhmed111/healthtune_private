@@ -14,4 +14,9 @@ export class GetUsersDto extends PaginationQueryDto {
   @IsBoolean()
   @ApiPropertyOptional({ description: 'banned filter for user' })
   banned?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ description: 'role filter' })
+  role?: string;
 }
