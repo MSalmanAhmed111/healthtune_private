@@ -76,8 +76,8 @@ export default class RolesSeeder implements Seeder {
   // Define roles with their permissions that can be easily updated
   private readonly ROLES = [
     {
-      key: UserRolesEnum.ADMIN,
-      name: 'Administrator',
+      key: 'org:admin',
+      name: UserRolesEnum.ADMIN,
       description: 'Full administrative access to the organization',
       permissions: [
         PermissionEnum.VIEW_ALL_PATIENTS,
