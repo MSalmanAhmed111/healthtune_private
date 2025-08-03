@@ -37,7 +37,7 @@ export class PatientService {
     const { firstName, lastName, email, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, medicalDetails, contactDetails, admissionDetails, insuranceDetails, languagePreference } = reqBody;
     //let mreCount = '0';
     let fetchedItem = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
-    let mreCount = fetchedItem.id || 0; // Use the last patient's ID or 0 if no patients exist
+    let mreCount = fetchedItem?.id || 0; // Use the last patient's ID or 0 if no patients exist
     if (email) {
       const emailExists = await this.patientRepository.findOne({ where: { email, doctorId: userId } });
       if (emailExists) throw new NotFoundException(PatientErrorMessages.emailExists);
