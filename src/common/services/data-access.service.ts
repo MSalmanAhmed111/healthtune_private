@@ -25,6 +25,11 @@ export class DataAccessService {
       });
     }
 
+    if (user && user.clerkOrganizationId && hasViewPatient) {
+      // If user has organization access but not view all patients, restrict to their own patients
+      return query
+    }
+
     // If user is restricted to their own patients only (no organization or restricted role)
     return query.andWhere(`patient.doctorId = :userId`, {
       userId: user.id,

@@ -32,7 +32,7 @@ export class AppointmentController {
   @Get('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user appointment')
-  @Permissions(PermissionEnum.VIEW_ALL_APPOINTMENTS)
+  @Permissions(PermissionEnum.VIEW_ALL_APPOINTMENTS, PermissionEnum.VIEW_APPOINTMENT)
   async getUserAppointments(@Query() queryParams: GetAppointmentsDto, @Req() req: Request) {
     return await this.appointmentService.getAppointments(queryParams, +req.user.id);
   }
@@ -40,7 +40,7 @@ export class AppointmentController {
   @Get('/:id')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get user appointment by ID')
-  @Permissions(PermissionEnum.VIEW_APPOINTMENT)
+  @Permissions(PermissionEnum.VIEW_ALL_APPOINTMENTS, PermissionEnum.VIEW_APPOINTMENT)
   async getUserAppointment(@Param('id', ValidateId) appointmentId: number, @Req() reqBody: Request) {
     return await this.appointmentService.getAppointment(appointmentId, +reqBody.user.id);
   }

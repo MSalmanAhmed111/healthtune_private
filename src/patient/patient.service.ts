@@ -4,7 +4,7 @@ import { Brackets, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames, UserRolesEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { FileStorage, Patient, Setting, User } from '@entities';
+import { Appointment, FileStorage, Patient, Setting, User } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
@@ -19,6 +19,8 @@ export class PatientService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Setting)
     private readonly settingsRepository: Repository<Setting>,
+    @InjectRepository(Appointment)
+    private readonly appointmentRepository: Repository<Appointment>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
@@ -189,13 +191,20 @@ export class PatientService {
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    if (userId && user.role.name === UserRolesEnum.DOCTOR) {
-      const doctorSetting = await this.settingsRepository.findOne({ where: { userId: userId, name: SettingNames.EnablePatientByAppointments } });
-      if (doctorSetting?.value === true) {
-        const todayStart = moment.utc().startOf('day').toDate();
-        const todayEnd = moment.utc().endOf('day').toDate();
+    if (user.role.name === UserRolesEnum.DOCTOR) {
+      const doctorSetting = await this.settingsRepository.findOne({
+        where: { userId: userId, name: SettingNames.EnablePatientByAppointments },
+      });
 
-        qb.innerJoin('patient.appointments', 'appointment').andWhere('appointment.appointmentDate >= :todayStart AND appointment.appointmentDate <= :todayEnd', {
+      if (doctorSetting?.value === true) {
+        const todayStart = moment().startOf('day').toDate();
+        const todayEnd = moment().endOf('day').toDate();
+
+        console.log({user, todayStart, todayEnd});
+
+        qb.innerJoin('patient.appointments', 'appointment')
+        .andWhere('appointment.doctorId = :userId', { userId })
+        .andWhere('appointment.appointmentDate BETWEEN :todayStart AND :todayEnd', {
           todayStart,
           todayEnd,
         });
@@ -203,7 +212,7 @@ export class PatientService {
     }
 
     qb.skip((page - 1) * limit).take(limit);
-
+    
     const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
     const lastPage = Math.ceil(total / limit);
 

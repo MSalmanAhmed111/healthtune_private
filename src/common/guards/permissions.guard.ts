@@ -41,7 +41,7 @@ export class PermissionGuard implements CanActivate {
     const userPermissions = user?.role?.permissions.map((permission) => permission.key);
 
     const hasPermission = requiredPermissions.some((permission) => userPermissions.includes(permission));
-
+    console.log({ hasPermission, requiredPermissions, userPermissions });
     if (!hasPermission) throw new UnauthorizedException('Unauthorized');
 
     return true;
