@@ -26,6 +26,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { PushNotificationModule } from './push-notification/push-notification.module';
 import { QuickNotessModule } from './quick-notes/quick-notes.module';
 import { CommonServicesModule } from './common/services/common-services.module';
+import { PermissionGuard } from '@guards/permissions.guard';
+import { Role } from '@entities';
 
 @Module({
   imports: [
@@ -34,7 +36,9 @@ import { CommonServicesModule } from './common/services/common-services.module';
       envFilePath: `.env.${process.env.ENVIRONMENT || 'development'}`,
       load: [configuration],
     }),
+
     TypeOrmModule.forRoot(dataSourceOptions),
+    TypeOrmModule.forFeature([Role]),
     ScheduleModule.forRoot(),
     CommonServicesModule,
     SessionsModule,
@@ -62,6 +66,10 @@ import { CommonServicesModule } from './common/services/common-services.module';
     {
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard,
     },
   ],
 })

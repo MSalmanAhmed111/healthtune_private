@@ -21,6 +21,7 @@ export class PermissionGuard implements CanActivate {
 
     //console.log({ user });
     const requiredPermissions = this.reflector.getAllAndOverride<string[]>('permissions', [context.getHandler(), context.getClass()]);
+
     if (!requiredPermissions) return true;
     if (!user.role) return true;
     // else if (!user) {
@@ -31,15 +32,16 @@ export class PermissionGuard implements CanActivate {
     // }
 
     const role = await this.roleRepository.findOne({
-      where: { key: user.role },
+      where: { id: user.role.id },
       relations: ['permissions'],
     });
 
     if (!role) throw new UnauthorizedException('Unauthorized');
 
-    const userPermissions = role.permissions.map((permission) => permission.key);
+    const userPermissions = user?.role?.permissions.map((permission) => permission.key);
 
     const hasPermission = requiredPermissions.some((permission) => userPermissions.includes(permission));
+
     if (!hasPermission) throw new UnauthorizedException('Unauthorized');
 
     return true;

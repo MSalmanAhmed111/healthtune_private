@@ -178,9 +178,8 @@ export class UserService {
         }),
       );
     }
-    const hasCreateAppointmentPermission = fetchedUser?.role?.permissions?.some((p) => p.key === PermissionEnum.CREATE_APPOINTMENT);
 
-    if (role) qb.andWhere('role.name = :roleName', { roleName: UserRolesEnum.DOCTOR });
+    if (role) qb.andWhere('role.name = :roleName', { roleName: role || UserRolesEnum.DOCTOR });
     if (fetchedUser.clerkOrganizationId) qb.andWhere('user.clerkOrganizationId = :clerkOrganizationId', { clerkOrganizationId: fetchedUser.clerkOrganizationId });
 
     qb.skip(skip).take(limit).orderBy({ 'user.createdAt': 'DESC' });

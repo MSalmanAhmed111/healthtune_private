@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames, UserRolesEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorage, Patient, Setting, User } from '@entities';
@@ -169,7 +169,7 @@ export class PatientService {
     //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
-    const qb = this.patientRepository.createQueryBuilder('patient');
+    let qb = this.patientRepository.createQueryBuilder('patient');
 
     if (query) {
       qb.andWhere(
@@ -183,13 +183,13 @@ export class PatientService {
     }
 
     // Apply organization-based filtering
-    this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
+    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
 
     if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    if (userId) {
+    if (userId && user.role.name === UserRolesEnum.DOCTOR) {
       const doctorSetting = await this.settingsRepository.findOne({ where: { userId: userId, name: SettingNames.EnablePatientByAppointments } });
       if (doctorSetting?.value === true) {
         const todayStart = moment.utc().startOf('day').toDate();

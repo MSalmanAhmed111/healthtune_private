@@ -30,7 +30,7 @@ export class PatientController {
   }
 
   @Get('/by-appointment')
-  @Permissions(PermissionEnum.VIEW_ALL_PATIENTS)
+  @Permissions(PermissionEnum.VIEW_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all patient')
   async getPatientsByAppointment(@Query() queryParams: GetPatientsDto, @Req() req: Request) {

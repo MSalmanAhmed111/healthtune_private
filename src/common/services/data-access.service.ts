@@ -18,6 +18,7 @@ export class DataAccessService {
     // If user has organization-wide access
     const hasViewPatient = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_PATIENT);
     const hasViewAllPatients = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
+
     if (user && user.clerkOrganizationId && hasViewPatient && hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
@@ -86,7 +87,7 @@ export class DataAccessService {
 
     const hasViewSession = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_SESSION);
     const hasViewAllSessions = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
-
+    console.log({ user, hasViewSession, hasViewAllSessions });
     // If user has organization-wide access
     if (user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
