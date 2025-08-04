@@ -155,7 +155,7 @@ export class UserService {
   async getOrganizationDoctors(getUsersDto: GetUsersDto, userId: number): Promise<ApiMessageDataPagination> {
     const { query, banned = false, page, limit, role } = getUsersDto;
     const skip = (page - 1) * limit;
-    let fetchedUser = await this.userRepository.createQueryBuilder('user').select(this.userFields).where('user.id = :userId', { userId }).getOne();
+    let fetchedUser = await this.userRepository.createQueryBuilder('user').where('user.id = :userId', { userId }).getOne();
     const qb = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userPlan', 'userPlan')
