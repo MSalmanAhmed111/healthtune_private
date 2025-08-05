@@ -80,7 +80,7 @@ export class SessionController {
   }
 
   @Get('/')
-  @Permissions(PermissionEnum.VIEW_ALL_SESSIONS)
+  @Permissions(PermissionEnum.VIEW_ALL_SESSIONS, PermissionEnum.VIEW_SESSION)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all user sessions')
   async getUserSessions(@Query() queryParams: GetSessionsDto, @Req() req: Request) {
@@ -88,7 +88,7 @@ export class SessionController {
   }
 
   @Get('/:id')
-  @Permissions(PermissionEnum.VIEW_SESSION)
+  @Permissions(PermissionEnum.VIEW_SESSION, PermissionEnum.VIEW_ALL_SESSIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a user session')
   async getUserSession(@Param('id', ValidateId) sessionId: number, @Req() req: Request) {
