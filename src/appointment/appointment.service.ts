@@ -38,6 +38,8 @@ export class AppointmentService {
       where = { id: patientId };
     }
 
+    if (appointmentDate && new Date(appointmentDate).getTime() < Date.now()) throw new BadRequestException(AppointmentErrorMessages.appointmentDateInPast);
+
     let patient = await this.patientRepository.findOne({ where });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
 

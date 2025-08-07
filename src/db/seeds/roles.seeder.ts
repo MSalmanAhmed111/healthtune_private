@@ -86,6 +86,7 @@ export default class RolesSeeder implements Seeder {
         PermissionEnum.VIEW_ALL_APPOINTMENTS,
         PermissionEnum.CREATE_APPOINTMENT,
         PermissionEnum.VIEW_APPOINTMENT,
+        PermissionEnum.CREATE_PATIENT_SESSION,
         PermissionEnum.VIEW_ALL_SESSIONS,
         PermissionEnum.VIEW_SESSION,
         PermissionEnum.SESSION_HISTORY,
