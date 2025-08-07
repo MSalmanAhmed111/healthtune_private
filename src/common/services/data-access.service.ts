@@ -18,8 +18,8 @@ export class DataAccessService {
     // If user has organization-wide access
     const hasViewPatient = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_PATIENT);
     const hasViewAllPatients = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
-
-    if (user && user.clerkOrganizationId && hasViewPatient && hasViewAllPatients) {
+    console.log({ user, hasViewPatient, hasViewAllPatients });
+    if (user && user.clerkOrganizationId && hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
@@ -27,7 +27,7 @@ export class DataAccessService {
 
     if (user && user.clerkOrganizationId && hasViewPatient) {
       // If user has organization access but not view all patients, restrict to their own patients
-      return query
+      return query;
     }
 
     // If user is restricted to their own patients only (no organization or restricted role)
@@ -44,7 +44,7 @@ export class DataAccessService {
     const hasViewAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_APPOINTMENT);
     const hasViewAllAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_APPOINTMENTS);
     // If user has organization-wide access
-    if (user && user.clerkOrganizationId && hasViewAppointment && hasViewAllAppointment) {
+    if (user && user.clerkOrganizationId && hasViewAllAppointment) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
@@ -94,7 +94,7 @@ export class DataAccessService {
     const hasViewAllSessions = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
     console.log({ user, hasViewSession, hasViewAllSessions });
     // If user has organization-wide access
-    if (user && user.clerkOrganizationId && hasViewSession && hasViewAllSessions) {
+    if (user && user.clerkOrganizationId && hasViewAllSessions) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
