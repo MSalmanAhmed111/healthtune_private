@@ -46,7 +46,7 @@ export class PatientController {
   }
 
   @Get('/:id')
-  @Permissions(PermissionEnum.VIEW_PATIENT, PermissionEnum.VIEW_PATIENT)
+  @Permissions(PermissionEnum.VIEW_ALL_PATIENTS, PermissionEnum.VIEW_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get a patient by ID')
   async getPatient(@Param('id', ValidateId) patientId: number, @Req() req: Request) {
