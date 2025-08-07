@@ -13,7 +13,7 @@ export class LocalStorageProvider implements StorageProviderInterface {
   constructor() {}
 
   uploadFile(file: Express.Multer.File): string {
-    const mimeType = file.mimetype.split('/');
+    const mimeType = file?.mimetype.split('/');
     const fileName = `${nanoid()}.` + mimeType[1];
     fs.writeFileSync(this.path + '/' + fileName, file.buffer, 'utf8');
     return fileName;

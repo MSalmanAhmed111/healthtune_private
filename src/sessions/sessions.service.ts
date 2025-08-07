@@ -99,9 +99,10 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     // Update Note
     if (dto.summary) {
-      let note = await this.noteRepository.findOne({ where: { sessionId } });
-      if (note) note.content = dto.summary;
-      else note = this.noteRepository.create({ sessionId, content: dto.summary });
+      let note: any = await this.noteRepository.findOne({ where: { sessionId } });
+      if (dto.summary && dto.summary.content && typeof dto.summary.content === 'string') dto.summary.content = { note: dto.summary.content };
+      if (note) note.content = (dto.summary.content as Record<string, string>) || note.content;
+      else note = this.noteRepository.create({ sessionId, content: dto.summary.content as Record<string, string> });
       await this.noteRepository.save(note);
       session.note = note;
     }
@@ -109,8 +110,9 @@ export class SessionService {
     // Update Doctor Notes
     if (dto.doctorNotes) {
       let doctorNote = await this.doctorNoteRepository.findOne({ where: { sessionId } });
-      if (doctorNote) doctorNote.content = dto.doctorNotes;
-      else doctorNote = this.doctorNoteRepository.create({ sessionId, content: dto.doctorNotes });
+      if (dto.doctorNotes && dto.doctorNotes.content && typeof dto.doctorNotes.content === 'string') dto.doctorNotes.content = { note: dto.doctorNotes.content };
+      if (doctorNote) doctorNote.content = (dto.doctorNotes.content as Record<string, string>) || doctorNote.content;
+      else doctorNote = this.doctorNoteRepository.create({ sessionId, content: dto.doctorNotes.content as Record<string, string> });
       await this.doctorNoteRepository.save(doctorNote);
       session.doctorNotes = doctorNote;
     }
@@ -118,24 +120,26 @@ export class SessionService {
     // Update Diagnosis Codes
     if (dto.diagnosisCodes) {
       let diagnosis = await this.diagnosisCodesRepository.findOne({ where: { sessionId } });
-      if (diagnosis) diagnosis.content = dto.diagnosisCodes;
-      else diagnosis = this.diagnosisCodesRepository.create({ sessionId, content: dto.diagnosisCodes });
+      if (dto.diagnosisCodes && dto.diagnosisCodes.content && typeof dto.diagnosisCodes.content === 'string') dto.diagnosisCodes.content = { note: dto.diagnosisCodes.content };
+      if (diagnosis) diagnosis.content = (dto.diagnosisCodes.content as Record<string, string>) || diagnosis.content;
+      else diagnosis = this.diagnosisCodesRepository.create({ sessionId, content: dto.diagnosisCodes.content as Record<string, string> });
       await this.diagnosisCodesRepository.save(diagnosis);
       session.diagnosisCodes = diagnosis;
     }
 
     // Update Transcript
     if (dto.transcript) {
+      if (dto.transcript.content && typeof dto.transcript.content === 'string') dto.transcript.content = { transcript: dto.transcript.content };
       const { assemblyId, content, duration } = dto.transcript;
-      let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
+      let transcript: any = await this.transcriptRepository.findOne({ where: { sessionId } });
       if (transcript) {
         transcript.assemblyId = assemblyId || transcript.assemblyId;
-        transcript.content = content || transcript.content;
+        transcript.content = dto.transcript?.content || transcript.content;
       } else {
         if (!assemblyId || !content) {
           throw new BadRequestException(SessionErrorMessages.missingTrancriptFields);
         }
-        transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });
+        transcript = this.transcriptRepository.create({ sessionId, assemblyId, content: content as Record<string, string> });
       }
       await this.transcriptRepository.save(transcript);
       session.transcript = transcript;
@@ -186,7 +190,7 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
     let note = await this.noteRepository.findOne({ where: { sessionId } });
-    if (note) note.content = content || note.content;
+    if (note) note.content = (content as Record<string, string>) || note.content;
     else note = this.noteRepository.create({ sessionId, content });
 
     note = await this.noteRepository.save(note);
@@ -202,7 +206,7 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
     let doctorNote = await this.doctorNoteRepository.findOne({ where: { sessionId } });
-    if (doctorNote) doctorNote.content = content || doctorNote.content;
+    if (doctorNote) doctorNote.content = (content as Record<string, string>) || doctorNote.content;
     else doctorNote = this.doctorNoteRepository.create({ sessionId, content });
 
     doctorNote = await this.doctorNoteRepository.save(doctorNote);
@@ -218,7 +222,7 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
 
     let diagnosisCodes = await this.diagnosisCodesRepository.findOne({ where: { sessionId } });
-    if (diagnosisCodes) diagnosisCodes.content = content || diagnosisCodes.content;
+    if (diagnosisCodes) diagnosisCodes.content = (content as Record<string, string>) || diagnosisCodes.content;
     else diagnosisCodes = this.diagnosisCodesRepository.create({ sessionId, content });
 
     diagnosisCodes = await this.diagnosisCodesRepository.save(diagnosisCodes);
@@ -235,7 +239,7 @@ export class SessionService {
     let transcript = await this.transcriptRepository.findOne({ where: { sessionId } });
     if (transcript) {
       transcript.assemblyId = assemblyId || transcript.assemblyId;
-      transcript.content = content || transcript.content;
+      transcript.content = (content as Record<string, string>) || transcript.content;
     } else {
       if (!sessionId || !assemblyId || !content) throw new NotFoundException(SessionErrorMessages.missingTrancriptFields);
       transcript = this.transcriptRepository.create({ sessionId, assemblyId, content });

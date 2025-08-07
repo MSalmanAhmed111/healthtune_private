@@ -17,7 +17,7 @@ export class Transcript {
   assemblyId: string;
 
   @Column({ type: 'jsonb' })
-  content: object;
+  content: Record<string, string>;
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;

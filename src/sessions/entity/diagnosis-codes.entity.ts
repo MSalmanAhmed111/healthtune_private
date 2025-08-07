@@ -14,7 +14,7 @@ export class DiagnosisCodes {
   session: Session;
 
   @Column({ type: 'jsonb' })
-  content: object;
+  content: Record<string, string>;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

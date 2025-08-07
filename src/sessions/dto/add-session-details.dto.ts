@@ -2,37 +2,33 @@ import { Type } from 'class-transformer';
 import { IsString, IsOptional, ValidateNested, IsNumber, IsArray, Min, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Trim } from '@decorators';
-import { AddNoteDto, AddTranscriptDto } from 'src/sessions/dto';
+//import { AddNoteDto, AddTranscriptDto } from 'src/sessions/dto';
 
+class AddNoteDetailsDto {
+  @ApiProperty({ description: 'Content of the note' })
+  @IsNotEmpty()
+  content: string | Record<string, string>;
+}
 
-// class AddNoteDto {
-//   @ApiProperty({ description: 'Content of the note' })
-//   @IsNotEmpty()
-//   @IsString()
-//   content: string;
-// }
+//=== AddTranscriptDetailsDto ===
+class AddTranscriptDetailsDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  assemblyId: string;
 
-// === AddTranscriptDto ===
-// class AddTranscriptDto {
-//   @ApiProperty()
-//   @IsNotEmpty()
-//   @IsString()
-//   assemblyId: string;
+  @ApiProperty()
+  @IsNotEmpty()
+  content: string | Record<string, any>;
 
-//   @ApiProperty()
-//   @IsNotEmpty()
-//   @IsString()
-//   content: object;
-
-//   @ApiPropertyOptional()
-//   @IsOptional()
-//   @Type(() => Number)
-//   @IsNumber()
-//   duration?: number;
-// }
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  duration?: number;
+}
 
 export class SessionCostDto {
-
   @ApiProperty({
     example: 946,
     description: 'Total number of input tokens',
@@ -99,40 +95,40 @@ export class SessionCostDto {
 
 export class AddSessionDetailsDto {
   @ApiPropertyOptional({
-    type: AddNoteDto,
+    type: AddNoteDetailsDto,
     example: {
       content: 'This session involved deep breathing techniques.',
     },
   })
   @ValidateNested()
-  @Type(() => AddNoteDto)
+  @Type(() => AddNoteDetailsDto)
   @IsOptional()
-  summary?: AddNoteDto;
+  summary?: AddNoteDetailsDto;
 
   @ApiPropertyOptional({
-    type: AddNoteDto,
+    type: AddNoteDetailsDto,
     example: {
       content: 'The doctor advised weekly follow-ups.',
     },
   })
   @ValidateNested()
-  @Type(() => AddNoteDto)
+  @Type(() => AddNoteDetailsDto)
   @IsOptional()
-  doctorNotes?: AddNoteDto;
+  doctorNotes?: AddNoteDetailsDto;
 
   @ApiPropertyOptional({
-    type: AddNoteDto,
+    type: AddNoteDetailsDto,
     example: {
       content: 'ICD-10: F41.1 - Generalized anxiety disorder',
     },
   })
   @ValidateNested()
-  @Type(() => AddNoteDto)
+  @Type(() => AddNoteDetailsDto)
   @IsOptional()
-  diagnosisCodes?: AddNoteDto;
+  diagnosisCodes?: AddNoteDetailsDto;
 
   @ApiPropertyOptional({
-    type: AddTranscriptDto,
+    type: AddTranscriptDetailsDto,
     example: {
       assemblyId: 'asd87asd7as8d7',
       content: 'Patient discussed recurring sleep issues...',
@@ -140,9 +136,9 @@ export class AddSessionDetailsDto {
     },
   })
   @ValidateNested()
-  @Type(() => AddTranscriptDto)
+  @Type(() => AddTranscriptDetailsDto)
   @IsOptional()
-  transcript?: AddTranscriptDto;
+  transcript?: AddTranscriptDetailsDto;
 
   @ValidateNested()
   @Type(() => SessionCostDto)
