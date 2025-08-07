@@ -233,14 +233,19 @@ export class ClerkWebhookService {
       user = await this.userRepository.save(user);
       user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
       await this.settingRepository.save(settings.map((setting) => ({ ...setting, userId: user.id })));
-      user = await this.userRepository.save(user);
+      await this.userRepository.update(
+        { id: user.id },
+        {
+          stripeCustomerId: user.stripeCustomerId,
+        },
+      );
     }
     const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
     if (!plan) return { message: 'User Created, but Unable to create default plan for user as no basic plan found.', data: user };
 
     const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
     let userPlan = this.userPlanRepository.create({
-      user,
+      userId: user.id,
       plan,
       startDate: new Date(),
       endDate,
@@ -415,7 +420,7 @@ export class ClerkWebhookService {
         user.organizationId = orgEntity.id;
         user.clerkOrganizationId = organization_id;
         user.roleId = (await this.getDefaultRole(role.toLowerCase())) || (await this.getDefaultRole(role.toLowerCase())) || (await this.getDefaultRole(DefaultRoleEnum.ADMIN));
-        console.log({role_name, role, roleId: user.roleId})
+        console.log({ role_name, role, roleId: user.roleId });
         await this.userRepository.save(user);
 
         console.log(`✅ User ${user.email} added to organization ${orgEntity.name} as ${user.role}`);
@@ -860,7 +865,7 @@ export class ClerkWebhookService {
 
     // Find existing role
     let role = await this.roleRepository.findOne({
-      where: [{ clerkRoleId }, { key }, {name}],
+      where: [{ clerkRoleId }, { key }, { name }],
       relations: ['permissions'],
     });
 
@@ -870,7 +875,6 @@ export class ClerkWebhookService {
       role.name = name ?? role.name;
       role.description = description ?? role.description;
       role.clerkRoleId = clerkRoleId ?? role.clerkRoleId;
-
     } else {
       // Create new role
       role = this.roleRepository.create({
