@@ -397,7 +397,7 @@ export class ClerkWebhookService {
       console.log(`🔐 Permissions:`, permissions);
 
       // Retry finding the user with timer to handle concurrent user creation
-      const user = await this.findUserWithRetry(user_id, 5, 25000);
+      const user = await this.findUserWithRetry(user_id, 5, 15000);
 
       if (user) {
         // Find or create organization if it doesn't exist
