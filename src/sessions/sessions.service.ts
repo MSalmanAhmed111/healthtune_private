@@ -315,7 +315,12 @@ export class SessionService {
   }
 
   async getSession(sessionId: number, userId: number = undefined): Promise<ApiMessageData> {
-    const where = userId !== undefined ? { id: sessionId, userId } : { id: sessionId };
+    let user = null;
+    if (userId) {
+      user = await this.userRepository.findOne({ where: { id: userId }, relations: ['role', 'organization'] });
+    }
+
+    const where = userId !== undefined && !user?.clerkOrganizationId ? { id: sessionId, userId } : { id: sessionId };
     const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     return { message: SuccessResponseMessages.successGeneral, data: session };
