@@ -1,17 +1,38 @@
-import { Type } from 'class-transformer';
-import { IsString, IsOptional, ValidateNested, IsNumber, IsArray, Min, IsNotEmpty } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Trim } from '@decorators';
-//import { AddNoteDto, AddTranscriptDto } from 'src/sessions/dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type, Transform } from 'class-transformer';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsArray, IsObject } from 'class-validator';
 
-class AddNoteDetailsDto {
+function JsonTransform({ value }: { value: any }) {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+function ArrayTransform({ value }: { value: any }) {
+  if (Array.isArray(value)) return value;
+  return value !== undefined ? [value] : [];
+}
+
+//
+// ---- NoteDetails DTO ----
+//
+export class AddNoteDetailsDto {
   @ApiProperty({ description: 'Content of the note' })
   @IsNotEmpty()
+  @Transform(JsonTransform)
   content: string | Record<string, string>;
 }
 
-//=== AddTranscriptDetailsDto ===
-class AddTranscriptDetailsDto {
+//
+// ---- TranscriptDetails DTO ----
+//
+export class AddTranscriptDetailsDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -19,6 +40,7 @@ class AddTranscriptDetailsDto {
 
   @ApiProperty()
   @IsNotEmpty()
+  @Transform(JsonTransform)
   content: string | Record<string, any>;
 
   @ApiPropertyOptional()
@@ -28,135 +50,80 @@ class AddTranscriptDetailsDto {
   duration?: number;
 }
 
-export class SessionCostDto {
-  @ApiProperty({
-    example: 946,
-    description: 'Total number of input tokens',
-  })
+//
+// ---- Cost DTO ----
+//
+export class CostDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(ArrayTransform)
+  operations: string[];
+
+  @ApiProperty()
+  @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
   totalInputTokens: number;
 
-  @ApiProperty({
-    example: 266,
-    description: 'Total number of output tokens',
-  })
+  @ApiProperty()
+  @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
   totalOutputTokens: number;
 
-  @ApiProperty({
-    example: 1212,
-    description: 'Total tokens processed in the session',
-  })
+  @ApiProperty()
+  @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
   totalTokens: number;
 
-  @ApiProperty({
-    example: '$0.000142',
-    description: 'Cost of input tokens in USD',
-  })
+  @ApiProperty()
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  totalCost: number;
+
+  @ApiProperty({ example: '$0.000142', description: 'Cost of input tokens in USD' })
   @IsString()
   @Trim()
   @IsNotEmpty()
   totalInputCost: string;
 
-  @ApiProperty({
-    example: '$0.000160',
-    description: 'Cost of output tokens in USD',
-  })
+  @ApiProperty({ example: '$0.000160', description: 'Cost of output tokens in USD' })
   @IsString()
   @Trim()
   @IsNotEmpty()
   totalOutputCost: string;
 
-  @ApiProperty({
-    example: '$0.000301',
-    description: 'Total cost of the session in USD',
-  })
+  @ApiProperty({ example: '$0.000301', description: 'Total cost of the session in USD' })
   @IsString()
   @Trim()
   @IsNotEmpty()
   totalSessionCost: string;
-
-  @ApiProperty({
-    example: ['Speaker Classification', 'Consolidated Session Notes'],
-    description: 'List of operations performed during the session',
-  })
-  @IsArray()
-  @IsString({ each: true })
-  @IsNotEmpty({ each: true })
-  operations: string[];
 }
 
+//
+// ---- Main CreateSessionDto ----
+//
 export class AddSessionDetailsDto {
-  @ApiPropertyOptional({
-    type: AddNoteDetailsDto,
-    example: {
-      content: 'This session involved deep breathing techniques.',
-    },
-  })
-  @ValidateNested()
-  @Type(() => AddNoteDetailsDto)
-  @IsOptional()
-  summary?: AddNoteDetailsDto;
-
-  @ApiPropertyOptional({
-    type: AddNoteDetailsDto,
-    example: {
-      content: 'The doctor advised weekly follow-ups.',
-    },
-  })
-  @ValidateNested()
-  @Type(() => AddNoteDetailsDto)
-  @IsOptional()
-  doctorNotes?: AddNoteDetailsDto;
-
-  @ApiPropertyOptional({
-    type: AddNoteDetailsDto,
-    example: {
-      content: 'ICD-10: F41.1 - Generalized anxiety disorder',
-    },
-  })
-  @ValidateNested()
-  @Type(() => AddNoteDetailsDto)
-  @IsOptional()
-  diagnosisCodes?: AddNoteDetailsDto;
-
-  @ApiPropertyOptional({
-    type: AddTranscriptDetailsDto,
-    example: {
-      assemblyId: 'asd87asd7as8d7',
-      content: 'Patient discussed recurring sleep issues...',
-      duration: 132.5,
-    },
-  })
-  @ValidateNested()
-  @Type(() => AddTranscriptDetailsDto)
+  @ApiPropertyOptional({ type: AddTranscriptDetailsDto })
   @IsOptional()
   transcript?: AddTranscriptDetailsDto;
 
-  @ValidateNested()
-  @Type(() => SessionCostDto)
+  @ApiPropertyOptional({ type: AddNoteDetailsDto })
   @IsOptional()
-  @ApiPropertyOptional({
-    type: SessionCostDto,
-    example: {
-      sessionId: '79',
-      patient: 'SaraM',
-      doctor: 'Mohib',
-      totalInputTokens: 946,
-      totalOutputTokens: 266,
-      totalTokens: 1212,
-      totalInputCost: '$0.000142',
-      totalOutputCost: '$0.000160',
-      totalSessionCost: '$0.000301',
-      operations: ['Speaker Classification', 'Consolidated Session Notes'],
-    },
-  })
-  cost?: SessionCostDto;
+  summary?: AddNoteDetailsDto;
+
+  @ApiPropertyOptional({ type: AddNoteDetailsDto })
+  @IsOptional()
+  doctorNotes?: AddNoteDetailsDto;
+
+  @ApiPropertyOptional({ type: AddNoteDetailsDto })
+  @IsOptional()
+  diagnosisCodes?: AddNoteDetailsDto;
+
+  @ApiPropertyOptional({ type: CostDto })
+  @IsOptional()
+  cost?: CostDto;
 }
