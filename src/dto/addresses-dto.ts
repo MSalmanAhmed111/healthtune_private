@@ -6,6 +6,7 @@ import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, Length, Matches, IsOptional, IsNumber, IsNumberString } from 'class-validator';
 
 export class AddressDto {
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @Trim()
@@ -13,6 +14,7 @@ export class AddressDto {
   @ApiProperty({ description: 'street address' })
   streetAddress: string;
 
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @Trim()
@@ -20,6 +22,7 @@ export class AddressDto {
   @ApiProperty({ description: 'City for the address' })
   city: string;
 
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @Trim()
@@ -34,6 +37,7 @@ export class AddressDto {
   @ApiPropertyOptional({ description: 'Postal code for the address' })
   postalCode: string;
 
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
   @Trim()
