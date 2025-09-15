@@ -65,7 +65,7 @@ export class Session extends BaseEntity {
   @Column({ nullable: true })
   appointmentId: number;
 
-  @OneToOne(() => SessionCosting, (sessionCost) => sessionCost.session, { nullable: true, cascade: true })
+  @OneToOne(() => Appointment, (appointment) => appointment.session, { nullable: true, cascade: true })
   @JoinColumn({ name: 'appointmentId' })
   appointment: Appointment;
 }
