@@ -1,6 +1,6 @@
-import { Patient, User } from '@entities';
+import { Patient, Session, User } from '@entities';
 import { AppointmentStatus } from '@types';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 
 @Entity({ name: 'appointment' })
 export class Appointment {
@@ -53,9 +53,15 @@ export class Appointment {
   @Column({ type: 'varchar', length: 10, nullable: true })
   color: string;
 
+  @Column({ type: 'boolean', default: false })
+  isCompleted: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToOne(() => Session, (session) => session.appointment, { nullable: true })
+  session: Session;
 }

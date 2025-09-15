@@ -66,6 +66,12 @@ export class GetAppointmentsDto extends PaginationQueryDto {
   isTelemedicine?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true')
+  @ApiPropertyOptional({ description: 'Filter by completed appointments (true/false)' })
+  isCompleted?: boolean;
+
+  @IsOptional()
   @IsString()
   @Trim()
   @ApiPropertyOptional({ description: 'Filter by appointment location (Clinic, Online, Home Visit)' })

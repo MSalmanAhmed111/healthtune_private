@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, InsuranceTypeEnum, SettingNames, UserRolesEnum } from '@types';
+import { Brackets, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, InsuranceTypeEnum, SettingNames, UserRolesEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { Appointment, FileStorage, Patient, Setting, User } from '@entities';
@@ -200,11 +200,7 @@ export class PatientService {
         const todayStart = moment().startOf('day').toDate();
         const todayEnd = moment().endOf('day').toDate();
 
-        console.log({user, todayStart, todayEnd});
-
-        qb.innerJoin('patient.appointments', 'appointment')
-        .andWhere('appointment.doctorId = :userId', { userId })
-        .andWhere('appointment.appointmentDate BETWEEN :todayStart AND :todayEnd', {
+        qb.innerJoinAndSelect('patient.appointments', 'appointment').andWhere('appointment.doctorId = :userId', { userId }).andWhere('appointment.appointmentDate BETWEEN :todayStart AND :todayEnd', {
           todayStart,
           todayEnd,
         });
@@ -212,7 +208,7 @@ export class PatientService {
     }
 
     qb.skip((page - 1) * limit).take(limit);
-    
+
     const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
     const lastPage = Math.ceil(total / limit);
 
@@ -221,6 +217,8 @@ export class PatientService {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
         if (image) patient.profileImage = { id: image.id, fileName: image.name };
       }
+      const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, order: { appointmentDate: 'ASC' } });
+      patient.appointments = appointments;
     }
 
     return {

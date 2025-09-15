@@ -125,7 +125,7 @@ export class AppointmentService {
     if (!user) throw new NotFoundException('User not found');
 
     //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
-    const { query, page = 1, limit = 10, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
+    const { query, page = 1, limit = 10, isCompleted = false, patientId, status, appointmentType, paymentStatus, minConsultationFee, maxConsultationFee, isTelemedicine, location, startDate, endDate, sort = SortEnum.DESC } = getAppointmentDto;
 
     const qb = this.appointmentRepository
       .createQueryBuilder('appointment')
@@ -161,6 +161,8 @@ export class AppointmentService {
 
     if (startDate) qb.andWhere('appointment.appointmentDate >= :startDate', { startDate });
     if (endDate) qb.andWhere('appointment.appointmentDate <= :endDate', { endDate });
+
+    qb.andWhere('appointment.isCompleted = :isCompleted', { isCompleted });
 
     qb.orderBy('appointment.createdAt', sort);
     qb.skip((page - 1) * limit).take(limit);

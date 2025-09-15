@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting } from '@entities';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment } from '@entities';
 import { Between, Brackets, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
@@ -34,6 +34,8 @@ export class SessionService {
     private readonly settingRepository: Repository<Setting>,
     @InjectRepository(SessionCosting)
     private readonly sessionCostRepository: Repository<SessionCosting>,
+    @InjectRepository(Appointment)
+    private readonly appointmentRepository: Repository<Appointment>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
     private readonly fileStorageService: FileStorageService,
@@ -44,11 +46,16 @@ export class SessionService {
   ) {}
 
   async createSession(reqBody: CreateSessionDto, userId: number): Promise<ApiMessageData> {
-    const { patientFirstName, patientLastName, sessionType, noteFormat, language } = reqBody;
+    const { patientFirstName, patientLastName, sessionType, noteFormat, language, appointmentId } = reqBody;
     let { patientId, sex } = reqBody;
     let patientName = null;
 
     const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['userPlan', 'userPlan.usage', 'userPlan.usage.planFeatureProperty', 'userPlan.usage.planFeatureProperty.feature'] });
+    let appointment = null;
+    if (appointmentId) {
+      appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
+      if (!appointment) throw new NotFoundException(SessionErrorMessages.appointmentNotFound);
+    }
 
     if (user.userPlan && user.userPlan.usage.length > 0) {
       const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
@@ -88,9 +95,10 @@ export class SessionService {
     } else {
       throw new NotFoundException(SessionErrorMessages.patientIdOrNameRequired);
     }
-    const session = this.sessionRepository.create({ patientId, patientName, sex, sessionType, noteFormat, language, userId });
+    const session = this.sessionRepository.create({ patientId, patientName, sex, sessionType, noteFormat, language, userId, appointmentId });
     await this.sessionRepository.save(session);
-
+    appointment.status = AppointmentStatus.InProgress;
+    await this.appointmentRepository.save(appointment);
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
@@ -337,6 +345,14 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     session.status = status;
     await this.sessionRepository.save(session);
+
+    if (session.appointmentId) {
+      const appointment = await this.appointmentRepository.findOne({ where: { id: session.appointmentId } });
+      if (appointment) {
+        appointment.status = AppointmentStatus.Completed;
+        await this.appointmentRepository.save(appointment);
+      }
+    }
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 }

@@ -13,6 +13,14 @@ export class CreateSessionDto {
   @Min(1)
   patientId: number;
 
+  @ApiProperty({ example: '123', description: 'ID of the appointment' })
+  @IsOptional()
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  appointmentId: number;
+
   @ApiProperty({ description: 'First name of the patient' })
   @IsOptional()
   @IsNotEmpty()
