@@ -126,4 +126,12 @@ export class AddSessionDetailsDto {
   @ApiPropertyOptional({ type: CostDto })
   @IsOptional()
   cost?: CostDto;
+
+  @ApiProperty({ description: 'Note format of the session' })
+  @IsNotEmpty()
+  @Trim()
+  @IsString()
+  //@IsEnum(NoteFormatEnum)
+  //noteFormat: NoteFormatEnum;
+  noteFormat: string;
 }

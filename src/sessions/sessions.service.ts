@@ -184,6 +184,8 @@ export class SessionService {
       session.sessionCosting = sessionCost;
     }
 
+    if (dto.noteFormat) session.noteFormat = dto.noteFormat;
+
     await this.sessionRepository.save(session);
 
     return {
