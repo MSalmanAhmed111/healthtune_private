@@ -129,9 +129,10 @@ export class AppointmentService {
 
     const qb = this.appointmentRepository
       .createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.session', 'session')
       .leftJoinAndMapOne('appointment.doctor', User, 'doctor', 'doctor.id = appointment.doctorId')
       .leftJoinAndMapOne('appointment.patient', Patient, 'patient', 'patient.id = appointment.patientId')
-      .select(['appointment', 'doctor.firstName', 'doctor.lastName', 'doctor.username', 'doctor.email', 'patient.mreNumber', 'patient.firstName', 'patient.lastName', 'patient.email']);
+      .select(['appointment', 'doctor.firstName', 'doctor.lastName', 'doctor.username', 'doctor.email', 'patient.mreNumber', 'patient.firstName', 'patient.lastName', 'patient.email', 'session']);
 
     if (query) {
       qb.andWhere(
@@ -194,7 +195,7 @@ export class AppointmentService {
 
     const appointment = (await this.appointmentRepository.findOne({
       where: { id: appointmentId },
-      relations: ['patient', 'patient.doctor'],
+      relations: ['patient', 'patient.doctor', 'session'],
     })) as Appointment & { doctor?: object; patient?: object };
 
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
