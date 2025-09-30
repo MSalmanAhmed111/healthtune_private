@@ -286,7 +286,7 @@ export class SessionService {
     if (!user) throw new NotFoundException('User not found');
 
     //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
-    const { query, page, limit, sort = 'DESC', patientId, startDate, endDate } = getSessionsDto;
+    const { query, page, limit, sort = 'DESC', patientId, startDate, endDate, userIdFilter } = getSessionsDto;
 
     let qb = this.sessionRepository
       .createQueryBuilder('session')
@@ -307,7 +307,10 @@ export class SessionService {
             .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` })
             .orWhere(`LOWER(COALESCE(patient.mreNumber, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
             .orWhere(`LOWER(COALESCE(patient.firstName, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
-            .orWhere(`LOWER(COALESCE(patient.lastName, '')) LIKE LOWER(:query)`, { query: `%${query}%` });
+            .orWhere(`LOWER(COALESCE(patient.lastName, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.email, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.firstName, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.lastName, '')) LIKE LOWER(:query)`, { query: `%${query}%` });
         }),
       );
     }
@@ -315,6 +318,8 @@ export class SessionService {
     // Apply organization-based filtering
     qb = await this.dataAccessService.applySessionsOrganizationFilter(qb, user, userId, 'patient');
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
+
+    if (userIdFilter) qb.andWhere('session.userId = :userIdFilter', { userIdFilter });
 
     if (startDate) qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });
     if (endDate) qb.andWhere('session.createdAt <= :endDate', { endDate: moment(endDate).utc().endOf('day').toDate() });

@@ -14,6 +14,14 @@ export class GetSessionsDto extends PaginationUserQueryDto {
   patientId: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @IsPositive()
+  @ApiPropertyOptional({ description: 'Id of the doctor for filteration' })
+  userIdFilter: number;
+
+  @IsOptional()
   @IsNotEmpty()
   @Trim()
   @Type(() => Date)
