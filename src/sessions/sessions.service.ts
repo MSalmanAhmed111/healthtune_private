@@ -87,7 +87,7 @@ export class SessionService {
         let mreCount = fetchedItem.id;
         //if (patient) mreCount = patient.id.toString();
         const mreNumber = `MRE-${(mreCount + 1).toString().padStart(7, '0')}`;
-        let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex, doctorId: userId });
+        let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex, doctorId: userId, createdAt: moment().utc().toDate(), updatedAt: moment().utc().toDate() });
         createdPatient = await this.patientRepository.save(createdPatient);
         patientId = createdPatient.id;
         patientName = createdPatient.firstName + ' ' + createdPatient.lastName;
@@ -97,8 +97,11 @@ export class SessionService {
     }
     const session = this.sessionRepository.create({ patientId, patientName, sex, sessionType, noteFormat, language, userId, appointmentId });
     await this.sessionRepository.save(session);
-    appointment.status = AppointmentStatus.InProgress;
-    await this.appointmentRepository.save(appointment);
+    if (appointment) {
+      appointment.status = AppointmentStatus.InProgress;
+      await this.appointmentRepository.save(appointment);
+    }
+
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
@@ -292,6 +295,8 @@ export class SessionService {
       .leftJoinAndSelect('session.doctorNotes', 'doctorNotes')
       .leftJoinAndSelect('session.diagnosisCodes', 'diagnosisCodes')
       .leftJoinAndSelect('session.patient', 'patient')
+      .leftJoinAndSelect('session.user', 'user')
+      .select(['session', 'note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient', 'user.id', 'user.firstName', 'user.lastName', 'user.email'])
       .orderBy('session.createdAt', sort);
 
     if (query) {
