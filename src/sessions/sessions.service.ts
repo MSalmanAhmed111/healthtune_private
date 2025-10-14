@@ -118,6 +118,15 @@ export class SessionService {
       session.note = note;
     }
 
+    if (dto.note) {
+      let note: any = await this.noteRepository.findOne({ where: { sessionId } });
+      if (dto.note && dto.note.content && typeof dto.note.content === 'string') dto.note.content = { note: dto.note.content };
+      if (note) note.content = (dto.summary.content as Record<string, string>) || note.content;
+      else note = this.noteRepository.create({ sessionId, content: dto.summary.content as Record<string, string> });
+      await this.noteRepository.save(note);
+      session.note = note;
+    }
+
     // Update Doctor Notes
     if (dto.doctorNotes) {
       let doctorNote = await this.doctorNoteRepository.findOne({ where: { sessionId } });

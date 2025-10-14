@@ -117,6 +117,10 @@ export class AddSessionDetailsDto {
 
   @ApiPropertyOptional({ type: AddNoteDetailsDto })
   @IsOptional()
+  note?: AddNoteDetailsDto;
+
+  @ApiPropertyOptional({ type: AddNoteDetailsDto })
+  @IsOptional()
   doctorNotes?: AddNoteDetailsDto;
 
   @ApiPropertyOptional({ type: AddNoteDetailsDto })
