@@ -111,9 +111,11 @@ export class AddSessionDetailsDto {
   @IsOptional()
   transcript?: AddTranscriptDetailsDto;
 
-  @ApiPropertyOptional({ type: AddNoteDetailsDto })
+  @ApiPropertyOptional({ description: 'Summary of the session' })
   @IsOptional()
-  summary?: AddNoteDetailsDto;
+  @IsNotEmpty()
+  @Transform(JsonTransform)
+  summary?: string | Record<string, string>;
 
   @ApiPropertyOptional({ type: AddNoteDetailsDto })
   @IsOptional()

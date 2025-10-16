@@ -110,19 +110,15 @@ export class SessionService {
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
     // Update Note
     if (dto.summary) {
-      let note: any = await this.noteRepository.findOne({ where: { sessionId } });
-      if (dto.summary && dto.summary.content && typeof dto.summary.content === 'string') dto.summary.content = { note: dto.summary.content };
-      if (note) note.content = (dto.summary.content as Record<string, string>) || note.content;
-      else note = this.noteRepository.create({ sessionId, content: dto.summary.content as Record<string, string> });
-      await this.noteRepository.save(note);
-      session.note = note;
+      if (dto.summary && typeof dto.summary === 'string') dto.summary = { content: dto.summary } as string | Record<string, string>;
+      session.summary = dto.summary as Record<string, string>;
     }
 
     if (dto.note) {
       let note: any = await this.noteRepository.findOne({ where: { sessionId } });
       if (dto.note && dto.note.content && typeof dto.note.content === 'string') dto.note.content = { note: dto.note.content };
-      if (note) note.content = (dto.summary.content as Record<string, string>) || note.content;
-      else note = this.noteRepository.create({ sessionId, content: dto.summary.content as Record<string, string> });
+      if (note) note.content = (dto.note.content as Record<string, string>) || note.content;
+      else note = this.noteRepository.create({ sessionId, content: dto.note.content as Record<string, string> });
       await this.noteRepository.save(note);
       session.note = note;
     }
