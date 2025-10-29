@@ -217,7 +217,7 @@ export class PatientService {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
         if (image) patient.profileImage = { id: image.id, fileName: image.name };
       }
-      const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, order: { appointmentDate: 'ASC' } });
+      const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, relations: ['session'], order: { appointmentDate: 'ASC' } });
       patient.appointments = appointments;
     }
 
