@@ -1,5 +1,5 @@
 import { DataSource } from 'typeorm';
-import { Seeder, SeederFactoryManager } from 'typeorm-extension';
+import { Seeder } from 'typeorm-extension';
 import { Role } from '../../entity/role.entity';
 import { Permission } from '../../entity/permissions.entity';
 import { PermissionEnum, UserRolesEnum } from '../../types/types';
@@ -130,7 +130,7 @@ export default class RolesSeeder implements Seeder {
     // },
   ];
 
-  public async run(dataSource: DataSource, factoryManager: SeederFactoryManager): Promise<any> {
+  public async run(dataSource: DataSource): Promise<any> {
     const roleRepository = dataSource.getRepository(Role);
     const permissionRepository = dataSource.getRepository(Permission);
 
