@@ -91,12 +91,9 @@ export class ClerkWebhookService {
         // Role Events
         case 'role.created':
         case 'role.updated':
-          console.log(`🎭 Role created: ${eventData.name} (${eventData.id})`);
-          return await this.syncRole(eventData);
-
         case 'role.deleted':
-          console.log(`🎭 Role deleted: ${eventData.id}`);
-          return await this.handleRoleDeleted(eventData);
+          console.log(`ℹ️ Role event ignored - roles managed in backend`);
+          return { message: 'Role event ignored', data: {} };
 
         // Default case for unhandled events
         default:

@@ -19,6 +19,7 @@ import { AppointmentModule } from './appointment/appointment.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
+import { RoleModule } from './role/role.module';
 import { PlanModule } from './plan/plan.module';
 import { StripeWebhookModule } from './webhooks/stripe/stripe-webhook.module';
 import { EDocumentsModule } from './e-forms/e-forms.module';
@@ -53,6 +54,7 @@ import { Role } from '@entities';
     FileStorageModule,
     AuthModule,
     AdminModule,
+    RoleModule,
     PlanModule,
     EDocumentsModule,
     PushNotificationModule,
