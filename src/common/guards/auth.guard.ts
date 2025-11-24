@@ -17,9 +17,17 @@ export class ClerkAuthGuard extends AuthGuard('clerk') {
 
     const authType: AuthTypeValue = this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getHandler()) || this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getClass()) || AuthTypeEnum.CLERK;
 
-    if (authType === 'admin') {
-      const JwtAuthGuard = AuthGuard('jwt');
-      return new JwtAuthGuard(this.reflector).canActivate(context);
+    if (Array.isArray(authType)) {
+      if (authType.includes('admin') || authType.includes('org:admin')) {
+        return super.canActivate(context);
+      }
+      if (authType.includes('clerk')) {
+        return super.canActivate(context);
+      }
+    }
+
+    if (authType === 'admin' || authType === 'org:admin' || authType === 'clerk') {
+      return super.canActivate(context);
     }
 
     return super.canActivate(context);

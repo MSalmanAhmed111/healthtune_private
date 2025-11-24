@@ -15,7 +15,7 @@ export class RoleController {
   // ==================== ROLE MANAGEMENT ====================
 
   @Get()
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all roles')
   async getAllRoles(): Promise<ApiMessageData> {
@@ -23,7 +23,7 @@ export class RoleController {
   }
 
   @Get(':id')
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get role by ID')
   async getRoleById(@Param('id', ValidateId) id: number): Promise<ApiMessageData> {
@@ -31,7 +31,7 @@ export class RoleController {
   }
 
   @Post()
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create new role')
   async createRole(@Body() createRoleDto: CreateRoleDto): Promise<ApiMessageData> {
@@ -39,7 +39,7 @@ export class RoleController {
   }
 
   @Put(':id')
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update role')
   async updateRole(@Param('id', ValidateId) id: number, @Body() updateRoleDto: UpdateRoleDto): Promise<ApiMessageData> {
@@ -47,7 +47,7 @@ export class RoleController {
   }
 
   @Delete(':id')
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete role')
   async deleteRole(@Param('id', ValidateId) id: number): Promise<ApiMessageData> {
@@ -57,7 +57,7 @@ export class RoleController {
   // ==================== PERMISSION MANAGEMENT ====================
 
   @Get('permission/all')
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all permissions')
   async getAllPermissions(): Promise<ApiMessageData> {
@@ -65,7 +65,7 @@ export class RoleController {
   }
 
   @Post(':roleId/set-permissions')
-  @AuthType('admin')
+  @AuthType(['admin', 'org:admin'])
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Set role permissions - grants new permissions and revokes removed ones')
   async setRolePermissions(
