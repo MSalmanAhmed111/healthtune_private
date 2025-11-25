@@ -12,25 +12,30 @@ export class DataAccessService {
    * Apply organization filters to patients query based on user role permissions
    */
   async applyPatientsOrganizationFilter(query: SelectQueryBuilder<Patient>, user: any, userId: number, alias = 'patient'): Promise<SelectQueryBuilder<Patient>> {
-    const hasViewPatient = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_PATIENT);
-    const hasViewAllPatients = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
+    // Safeguard: ensure permissions exist
+    if (!user?.role?.permissions || user.role.permissions.length === 0) {
+      return query.andWhere(`${alias}.doctorId = :userId`, { userId: user?.id });
+    }
 
-    if (user && user.clerkOrganizationId && hasViewAllPatients) {
+    const hasViewPatient = user.role.permissions.some((p) => p.key === PermissionEnum.VIEW_PATIENT);
+    const hasViewAllPatients = user.role.permissions.some((p) => p.key === PermissionEnum.VIEW_ALL_PATIENTS);
+
+    // If user has VIEW_ALL_PATIENTS permission and organization access
+    if (user?.clerkOrganizationId && hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
     }
 
-    if (user && user.clerkOrganizationId && hasViewPatient) {
-      // If user has organization access but not view all patients, restrict to their own patients
-      // return query;
+    // If user has VIEW_PATIENT permission (but not all) and organization access
+    if (user?.clerkOrganizationId && hasViewPatient && !hasViewAllPatients) {
       return query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
     }
 
-    // If user is restricted to their own patients only (no organization or restricted role)
-    return query.andWhere(`patient.doctorId = :userId`, {
+    // Default: restrict to own patients only
+    return query.andWhere(`${alias}.doctorId = :userId`, {
       userId: user.id,
     });
   }
@@ -38,20 +43,24 @@ export class DataAccessService {
   /**
    * Apply organization filters to appointments query based on user role permissions
    */
-  async applyAppointmentsOrganizationFilter(query: SelectQueryBuilder<Appointment>, user: User, userId: number, alias = 'patient'): Promise<SelectQueryBuilder<Appointment>> {
-    const hasViewAllAppointment = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_APPOINTMENTS);
+  async applyAppointmentsOrganizationFilter(query: SelectQueryBuilder<Appointment>, user: User, userId: number, alias = 'appointment'): Promise<SelectQueryBuilder<Appointment>> {
+    // Safeguard: ensure permissions exist
+    if (!user?.role?.permissions || user.role.permissions.length === 0) {
+      return query.andWhere(`${alias}.doctorId = :userId`, { userId: user.id });
+    }
+
+    const hasViewAllAppointment = user.role.permissions.some((p) => p.key === PermissionEnum.VIEW_ALL_APPOINTMENTS);
 
     // If user has organization-wide access
-    if (user && user.clerkOrganizationId && hasViewAllAppointment) {
+    if (user?.clerkOrganizationId && hasViewAllAppointment) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
-
       return query;
     }
 
     // Default: user can only see their own appointments
-    query = query.andWhere(`appointment.doctorId = :userId`, {
+    query = query.andWhere(`${alias}.doctorId = :userId`, {
       userId: user.id,
     });
 
@@ -62,19 +71,22 @@ export class DataAccessService {
    * Apply organization filters to sessions query based on user role permissions
    */
   async applySessionsOrganizationFilter(query: SelectQueryBuilder<Session>, user: User, userId: number, alias = 'session'): Promise<SelectQueryBuilder<Session>> {
-    const hasViewSession = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_SESSION);
-    const hasViewAllSessions = user?.role?.permissions?.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
+    // Safeguard: ensure permissions exist
+    if (!user?.role?.permissions || user.role.permissions.length === 0) {
+      return query.andWhere(`${alias}.userId = :userId`, { userId: user.id });
+    }
 
-    if (user && user.clerkOrganizationId && hasViewAllSessions) {
+    const hasViewAllSessions = user.role.permissions.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
+
+    if (user?.clerkOrganizationId && hasViewAllSessions) {
       query = query.andWhere(`${alias}.organizationId = :orgId`, {
         orgId: user.organizationId,
       });
-
       return query;
     }
 
     // Default: user can only see their own sessions
-    query = query.andWhere(`session.userId = :userId`, {
+    query = query.andWhere(`${alias}.userId = :userId`, {
       userId: user.id,
     });
 
