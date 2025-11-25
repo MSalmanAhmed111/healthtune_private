@@ -1,8 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, ManyToMany, JoinTable, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, ManyToMany, JoinTable, JoinColumn, Index } from 'typeorm';
 import { Permission } from './permissions.entity';
 import { User } from '@entities';
 
 @Entity('roles')
+@Index(['organizationId', 'key'], { unique: true, where: 'organizationId IS NOT NULL' })
+@Index(['key'], { unique: true, where: 'organizationId IS NULL' })
 export class Role {
   @PrimaryGeneratedColumn()
   id: number;
@@ -10,7 +12,7 @@ export class Role {
   @Column({ unique: true, nullable: true })
   clerkRoleId: string;
 
-  @Column({ type: 'varchar', unique: true })
+  @Column({ type: 'varchar' })
   key: string;
 
   @Column({ type: 'varchar' })
@@ -18,6 +20,13 @@ export class Role {
 
   @Column({ type: 'text', nullable: true })
   description?: string;
+
+  @Column({ type: 'integer', nullable: true, default: null })
+  organizationId?: number;
+
+  @ManyToOne('Organization', { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organizationId' })
+  organization?: any;
 
   // Role-Permission many-to-many relationship
   @ManyToMany(() => Permission, (permission) => permission.roles, { cascade: true })
@@ -31,6 +40,9 @@ export class Role {
   // Users with this role
   @OneToMany(() => User, (user) => user.role)
   users: User[];
+
+  @Column({ type: 'boolean', default: false })
+  isSystemRole: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -220,15 +220,17 @@ export default class RolesSeeder implements Seeder {
       });
 
       if (!role) {
-        // Create new role
+        // Create new role as system-level (organizationId = null, isSystemRole = true)
         role = roleRepository.create({
           clerkRoleId: null,
           key: roleData.key,
           name: roleData.name,
           description: roleData.description,
+          organizationId: null,
+          isSystemRole: true,
         });
         role = await roleRepository.save(role);
-        console.log(`✅ Created new role: ${roleData.name}`);
+        console.log(`✅ Created new system-level role: ${roleData.name}`);
       } else {
         // Update existing role (in case name/description changed)
         let hasChanges = false;
@@ -240,6 +242,16 @@ export default class RolesSeeder implements Seeder {
 
         if (role.description !== roleData.description) {
           role.description = roleData.description;
+          hasChanges = true;
+        }
+
+        if (role.organizationId !== null) {
+          role.organizationId = null;
+          hasChanges = true;
+        }
+
+        if (!role.isSystemRole) {
+          role.isSystemRole = true;
           hasChanges = true;
         }
 
