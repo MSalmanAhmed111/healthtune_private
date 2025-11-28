@@ -1,9 +1,10 @@
-import { User, Plan, UserPlan, UserPlanUsage, PlanFeature, SubscriptionHistory } from '@entities';
+import { User, Plan, UserPlan, UserPlanUsage, SubscriptionHistory } from '@entities';
 import { StripeHelper } from '@helpers/stripe.helper';
 import { PlanErrorMessages } from '@messages';
 import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { PaymentMethodEnum, PlanTypeEnum, SeedPlanNamesEnum, SubscriptionStatusEnum } from '@types';
+import { PaymentMethodEnum, PlanTypeEnum, SubscriptionStatusEnum } from '@types';
+import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import Stripe from 'stripe';
 import { Repository } from 'typeorm';
 
@@ -42,26 +43,53 @@ export class StripeWebhookService {
           const user = await this.userRepository.findOne({ where: { id: userId } });
 
           if (user.cardAdded) {
-            const userCards = await this.stripeHelper.retrieveCards(user.stripeCustomerId);
-            if (userCards.length) await this.stripeHelper.deleteCard(userCards[userCards.length - 1].id);
+            // Find user's subscription to get stripe customer ID
+            const userSubscription = await this.userPlanRepository.findOne({
+              where: { subscriberType: SubscriberType.USER, subscriberId: user.id }
+            });
+            const stripeCustomerId = userSubscription?.stripeCustomerId;
+            if (stripeCustomerId) {
+              const userCards = await this.stripeHelper.retrieveCards(stripeCustomerId);
+            }
+
           }
 
           user.cardAdded = true;
           await this.userRepository.save(user);
         } else if (completedSession.mode === 'subscription' && completedSession.payment_status === 'paid') {
-          // Handle new subscription
+          // Handle new user subscription (unified schema)
           const { userId, planId } = completedSession.metadata;
           const user = await this.userRepository.findOne({ where: { id: userId } });
-          user.stripeSubscriptiontId = completedSession.subscription
-          await this.userRepository.save(user);
+          if (!user) throw new NotFoundException('User not found');
+          
           const plan = await this.planRepository.findOne({
             where: { id: planId },
             relations: ['features'],
           });
           if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
-          await this.createNewUserPlan(user, plan);
+          
+          // Find or create user subscription
+          let subscription = await this.userPlanRepository.findOne({
+            where: { subscriberType: SubscriberType.USER, subscriberId: userId }
+          });
+          
+          if (!subscription) {
+            subscription = this.userPlanRepository.create({
+              subscriberType: SubscriberType.USER,
+              subscriberId: userId,
+              userId: userId,
+            });
+          }
+          
+          subscription.stripeSubscriptionId = completedSession.subscription;
+          await this.userPlanRepository.save(subscription);
+          
+          await this.createNewUserPlan(subscription, plan);
           await this.subscriptionHistoryRepository.save({
+            subscriberType: SubscriberType.USER,
+            subscriberId: userId,
             user,
+            userId,
             plan,
             subscriptionDate: new Date(),
             endDate: this.calculateEndDate(plan.planType),
@@ -86,13 +114,18 @@ export class StripeWebhookService {
           if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
 
           const userPlan = await this.userPlanRepository.findOne({
-            where: { user: { id: userId } },
+            where: { 
+              subscriberType: SubscriberType.USER,
+              subscriberId: userId 
+            },
             relations: ['user', 'usage', 'usage.planFeatureProperty'],
           });
 
           if (userPlan) {
             await this.renewUserPlan(userPlan, plan);
             await this.subscriptionHistoryRepository.save({
+              subscriberType: SubscriberType.USER,
+              subscriberId: userId,
               userId,
               plan,
               subscriptionDate: new Date(),
@@ -109,24 +142,28 @@ export class StripeWebhookService {
       }
       case 'invoice.paid': {
         const paidInvoice = event.data.object as any;
-        const user = await this.userRepository.findOne({
-          where: { stripeCustomerId: paidInvoice.customer },
-          relations: ['userPlan'],
+        // Find subscription by stripeCustomerId - need to query subscription directly
+        const subscription = await this.userPlanRepository.findOne({
+          where: { 
+            subscriberType: SubscriberType.USER,
+            stripeCustomerId: paidInvoice.customer 
+          },
+          relations: ['user', 'plan'],
         });
 
-        if (user?.userPlan) {
-          const plan = await this.planRepository.findOne({
-            where: { id: user.userPlan.planId },
-            relations: ['features'],
-          });
+        if (subscription) {
+          const plan = subscription.plan;
 
           if (plan) {
             // Ensure it's a renewal and not a first-time payment
             const isFirstPayment = paidInvoice.billing_reason === 'subscription_create';
             if (!isFirstPayment) {
-              await this.renewUserPlan(user.userPlan, plan);
+              await this.renewUserPlan(subscription, plan);
               await this.subscriptionHistoryRepository.save({
-                user,
+                subscriberType: SubscriberType.USER,
+                subscriberId: subscription.subscriberId,
+
+                userId: subscription.userId,
                 plan,
                 subscriptionDate: new Date(),
                 endDate: this.calculateEndDate(plan.planType),
@@ -143,24 +180,33 @@ export class StripeWebhookService {
       }
       case 'invoice.payment_failed': {
         const failedInvoice = event.data.object as any;
-        const user = await this.userRepository.findOne({
-          where: { stripeCustomerId: failedInvoice.customer },
-          relations: ['userPlan', 'userPlan.plan'],
+        const subscription = await this.userPlanRepository.findOne({
+          where: { 
+            subscriberType: SubscriberType.USER,
+            stripeCustomerId: failedInvoice.customer 
+          },
+          relations: ['user', 'plan'],
         });
 
-        if (user?.userPlanId) {
-          await this.userPlanRepository.update(user.userPlanId, {
+        if (subscription) {
+          // Fetch user for history record
+          const user = await this.userRepository.findOne({ where: { id: subscription.userId } });
+          
+          await this.userPlanRepository.update(subscription.id, {
             isSubscriptionActive: false,
           });
           await this.subscriptionHistoryRepository.save({
-            user,
-            planId: user.userPlan.planId,
+            subscriberType: SubscriberType.USER,
+            subscriberId: subscription.subscriberId,
+            user: user,
+            userId: subscription.userId,
+            planId: subscription.plan.id,
             subscriptionDate: new Date(),
-            endDate: this.calculateEndDate(user.userPlan.plan.planType),
+            endDate: this.calculateEndDate(subscription.plan.planType),
             isActive: false,
             status: SubscriptionStatusEnum.FAILED,
             paymentMethod: PaymentMethodEnum.CREDIT_CARD,
-            amountPaid: parseFloat(user.userPlan.plan.price),
+            amountPaid: parseFloat(subscription.plan.price),
             transactionId: failedInvoice.id,
           });
         }
@@ -181,23 +227,34 @@ export class StripeWebhookService {
 
         // if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
         // await this.createNewUserPlan(user, defaultPlan);
-        let user = await this.userRepository.findOne({ where: { stripeCustomerId: deletedSubscription.customer }, relations: ['userPlan', 'userPlan.plan'], });
-        let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: user.id } }, relations: ['usage', 'plan'] });
-
-        user.stripeSubscriptiontId = null;
-        user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
-        userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
-        await this.subscriptionHistoryRepository.save({
-          user,
-          planId: userPlan.planId,
-          subscriptionDate: new Date(),
-          endDate: this.calculateEndDate(userPlan.plan.planType),
-          isActive: false,
-          status: SubscriptionStatusEnum.CANCELLED,
-          paymentMethod: PaymentMethodEnum.CREDIT_CARD,
-          amountPaid: parseFloat(userPlan.plan.price),
-          transactionId: deletedSubscription.id,
+        const userPlan = await this.userPlanRepository.findOne({ 
+          where: { 
+            subscriberType: SubscriberType.USER,
+            stripeCustomerId: deletedSubscription.customer 
+          }, 
+          relations: ['user', 'plan', 'usage'] 
         });
+
+        if (userPlan) {
+          userPlan.stripeSubscriptionId = null;
+          userPlan.isSubscriptionActive = false;
+          await this.userPlanRepository.save(userPlan);
+          
+          await this.subscriptionHistoryRepository.save({
+            subscriberType: SubscriberType.USER,
+            subscriberId: userPlan.subscriberId,
+
+            userId: userPlan.userId,
+            planId: userPlan.plan.id,
+            subscriptionDate: new Date(),
+            endDate: this.calculateEndDate(userPlan.plan.planType),
+            isActive: false,
+            status: SubscriptionStatusEnum.CANCELLED,
+            paymentMethod: PaymentMethodEnum.CREDIT_CARD,
+            amountPaid: parseFloat(userPlan.plan.price),
+            transactionId: deletedSubscription.id,
+          });
+        }
         break;
       }
       default:
@@ -239,31 +296,21 @@ export class StripeWebhookService {
     return this.userPlanRepository.save(userPlan);
   }
 
-  async createNewUserPlan(user: User, plan: Plan): Promise<UserPlan> {
-    // Clean up existing plan
-    const existingUserPlan = await this.userPlanRepository.findOne({
-      where: { user: { id: user.id } },
-      relations: ['usage'],
-    });
+  async createNewUserPlan(subscription: UserPlan, plan: Plan): Promise<UserPlan> {
+    // Update existing subscription with new plan
+    subscription.plan = plan;
+    subscription.planId = plan.id;
+    subscription.startDate = new Date();
+    subscription.endDate = this.calculateEndDate(plan.planType);
+    subscription.isSubscriptionActive = true;
 
-    if (existingUserPlan) {
-      await this.userPlanUsageRepository.delete({ userPlanId: existingUserPlan.id });
-      user.userPlan = null;
-      user.userPlanId = null;
-      user = await this.userRepository.save(user);
-      await this.userPlanRepository.delete({ id: existingUserPlan.id });
+    // Clean up existing usage
+    if (subscription.id) {
+      await this.userPlanUsageRepository.delete({ userPlanId: subscription.id });
     }
 
-    // Create new plan
-    const endDate = this.calculateEndDate(plan.planType);
-    const userPlan = this.userPlanRepository.create({
-      user,
-      plan,
-      startDate: new Date(),
-      endDate,
-      isSubscriptionActive: true,
-      usage: [],
-    });
+    // Save updated subscription
+    const savedSubscription = await this.userPlanRepository.save(subscription);
 
     // Create usages for plan features
     for (const feature of plan.features) {
@@ -271,15 +318,14 @@ export class StripeWebhookService {
 
       const newUsage = this.userPlanUsageRepository.create({
         planFeatureProperty: feature,
+        userPlanId: savedSubscription.id,
         planFeaturePropertyId: feature.id,
         usageCount: feature.properties?.limit ?? null,
       });
 
-      userPlan.usage.push(newUsage);
+      await this.userPlanUsageRepository.save(newUsage);
     }
-    await this.userPlanRepository.save(userPlan);
-    user.userPlanId = userPlan.id;
-    const newuser = await this.userRepository.save(user);
-    return userPlan;
+
+    return savedSubscription;
   }
 }

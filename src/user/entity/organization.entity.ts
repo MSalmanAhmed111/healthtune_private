@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
-import { OrganizationRole } from '@types';
 import { Patient } from '@entities';
+import { UserPlan } from './user-plan.entity';
 import { Role } from '@entities';
 
 @Entity('organizations')
@@ -32,6 +32,13 @@ export class Organization {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  @OneToOne(() => UserPlan, { nullable: true })
+  @JoinColumn({ name: 'userPlanId' })
+  userPlan: UserPlan;
+
+  @Column({ type: 'integer', nullable: true })
+  userPlanId: number;
 
   @CreateDateColumn()
   createdAt: Date;

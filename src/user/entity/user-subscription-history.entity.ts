@@ -1,18 +1,37 @@
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column, CreateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, ManyToOne, Column, CreateDateColumn, JoinColumn, Index } from 'typeorm';
 import { PaymentMethodEnum, SubscriptionStatusEnum } from '@types';
 import { User, Plan } from '@entities';
+import { Organization } from './organization.entity';
+import { UserPlan, SubscriberType } from './user-plan.entity';
 
 @Entity('subscription_history')
+@Index(['subscriberType', 'subscriberId'])
 export class SubscriptionHistory {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @ManyToOne(() => User, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'userId' })
-    user: User;
+    @Column({ 
+        type: 'varchar', 
+        default: SubscriberType.USER 
+    })
+    subscriberType: SubscriberType;
 
     @Column({ type: 'integer' })
-    userId: number;
+    subscriberId: number;
+
+    @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: true })
+    @JoinColumn({ name: 'userId' })
+    user?: User;
+
+    @Column({ type: 'integer', nullable: true })
+    userId?: number;
+
+    @ManyToOne(() => Organization, { onDelete: 'CASCADE', nullable: true })
+    @JoinColumn({ name: 'organizationId' })
+    organization?: Organization;
+
+    @Column({ type: 'integer', nullable: true })
+    organizationId?: number;
 
     @ManyToOne(() => Plan, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'planId' })

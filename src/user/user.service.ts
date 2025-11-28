@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan } from '@entities';
+import { Appointment, FileStorage, Plan, Session, SubscriptionHistory, User, UserPlan, Organization } from '@entities';
+import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { SuccessResponseMessages, ErrorResponseMessages, userErrorMessages, PlanErrorMessages } from '@messages';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageDataPagination, ApiMessageData, SeedPlanNamesEnum, ApiMessage, SessionStatusEnum, PermissionEnum, UserRolesEnum } from '@types';
@@ -17,6 +18,8 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
     @InjectRepository(Plan)
     private readonly planRepository: Repository<Plan>,
     @InjectRepository(UserPlan)
@@ -38,28 +41,65 @@ export class UserService {
   ) {}
 
   private readonly userFields = ['user.id', 'user.clerkUserId', 'user.firstName', 'user.lastName', 'user.username', 'user.email', 'user.imageUrl', 'user.banned', 'user.publicMetadata'];
-
-  async selectPlanForUser(userId: number, planId: number, reqBody: RedirectionUrlDto): Promise<ApiMessageData> {
+      
+  async selectPlanForUser(
+    userId: number,
+    planId: number, 
+    reqBody: RedirectionUrlDto
+  ): Promise<ApiMessageData> {
     let { cancelURL, successURL } = reqBody;
-    let user = await this.userRepository.findOne({ where: { id: userId } });
+    
+    // Only handle individual user subscriptions
+    const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException(userErrorMessages.userNotExists);
-
-    if (!user.stripeCustomerId) {
-      (user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`)), (user = await this.userRepository.save(user));
-    }
 
     const plan = await this.planRepository.findOne({ where: { id: planId }, relations: ['features'] });
     if (!plan) throw new NotFoundException(PlanErrorMessages.planNotExists);
-    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
 
-    if (userPlan.isSubscriptionActive && planId == userPlan.planId) throw new BadRequestException(`User already have an ongoing subscription of ${plan.name}.`);
+    // Get or create user subscription
+    let userPlan = await this.userPlanRepository.findOne({ 
+      where: { 
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId 
+      }, 
+      relations: ['usage', 'plan'] 
+    });
+
+    // Create subscription if doesn't exist
+    if (!userPlan) {
+      userPlan = this.userPlanRepository.create({
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId,
+        userId: userId,
+        plan: plan,
+        planId: plan.id,
+      });
+    }
+
+    // Create Stripe customer if needed
+    if (!userPlan.stripeCustomerId) {
+      userPlan.stripeCustomerId = await this.stripeHelper.createCustomer(
+        { id: user.id, clerkUserId: user.clerkUserId },
+        user.email,
+        `${user.firstName || ''} ${user.lastName || ''}`
+      );
+      userPlan = await this.userPlanRepository.save(userPlan);
+    }
+
+    // Allow plan selection - if switching plans or reselecting same plan, we proceed
+    // Only block if trying to renew an active subscription that's still valid
+    if (userPlan?.isSubscriptionActive && planId == userPlan.planId && userPlan.endDate && userPlan.endDate > new Date()) {
+      // User has an active, unexpired subscription to the same plan
+      if (userPlan.stripeSubscriptionId) {
+        throw new BadRequestException(`User already has an active subscription for ${plan.name} until ${userPlan.endDate.toLocaleDateString()}`);
+      }
+    }
 
     if (plan.name === SeedPlanNamesEnum.BASIC_PLAN) {
-      if (user.stripeSubscriptiontId) {
-        await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
-      } else {
-        userPlan = await this.stripeWebhookServie.createNewUserPlan(user, plan);
+      if (userPlan.stripeSubscriptionId) {
+        await this.stripeHelper.cancelSubscription(userPlan.stripeSubscriptionId);
       }
+      userPlan = await this.stripeWebhookServie.createNewUserPlan(userPlan, plan);
       return {
         message: SuccessResponseMessages.successGeneral,
         data: null,
@@ -72,23 +112,54 @@ export class UserService {
       return {
         message: SuccessResponseMessages.successGeneral,
         data: {
-          url: await this.stripeHelper.createPaymentSession({ planId: plan.id, userId: user.id, clerkUserId: user.clerkUserId }, user.stripeCustomerId, successURL, cancelURL, plan.stripePriceId),
+          url: await this.stripeHelper.createPaymentSession(
+            { 
+              planId: plan.id, 
+              subscriberType: SubscriberType.USER,
+              subscriberId: userId,
+              userId: userId,
+              clerkUserId: user.clerkUserId 
+            }, 
+            userPlan.stripeCustomerId, 
+            successURL, 
+            cancelURL, 
+            plan.stripePriceId
+          ),
           userPlan,
         },
       };
     }
   }
 
-  async cancelSubscription(userId: number): Promise<ApiMessageData> {
-    let user = await this.userRepository.findOne({ where: { id: userId } });
-    const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
-    let userPlan = await this.userPlanRepository.findOne({ where: { user: { id: userId } }, relations: ['usage'] });
-    if (userPlan.planId === plan.id) throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
-    if (!userPlan.isSubscriptionActive) throw new BadRequestException(`User already unsubscriped ${plan.name}.`);
-    await this.stripeHelper.cancelSubscription(user.stripeSubscriptiontId);
-    // user.stripeSubscriptiontId = null;
-    // user = await this.userRepository.save({ ...user, stripeSubscriptiontId: null });
-    // userPlan = await this.userPlanRepository.save({ ...userPlan, isSubscriptionActive: false });
+  async cancelSubscription(
+    userId: number
+  ): Promise<ApiMessageData> {
+    const plan = await this.planRepository.findOne({ 
+      where: { name: SeedPlanNamesEnum.BASIC_PLAN }, 
+      relations: ['features'] 
+    });
+    
+    let userPlan = await this.userPlanRepository.findOne({ 
+      where: { 
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId 
+      }, 
+      relations: ['usage', 'plan'] 
+    });
+    
+    if (!userPlan) {
+      throw new NotFoundException('No subscription found');
+    }
+    
+    if (userPlan.planId === plan.id) {
+      throw new BadRequestException(userErrorMessages.noPaidPlanSubscritionActive);
+    }
+    
+    if (!userPlan.isSubscriptionActive) {
+      throw new BadRequestException(`Subscription already cancelled.`);
+    }
+    
+    await this.stripeHelper.cancelSubscription(userPlan.stripeSubscriptionId);
 
     return {
       message: SuccessResponseMessages.successGeneral,
@@ -230,16 +301,28 @@ export class UserService {
   async getUserCardDetails(userId: number): Promise<ApiMessageData> {
     let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: { subscriberType: SubscriberType.USER, subscriberId: userId }
+    });
+    if (!subscription?.stripeCustomerId) throw new BadRequestException('No Stripe customer found');
+    
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: await this.stripeHelper.retrieveCards(user.stripeCustomerId),
+      data: await this.stripeHelper.retrieveCards(subscription.stripeCustomerId),
     };
   }
 
   async deleteUserCardDetails(userId: number): Promise<ApiMessage> {
     let user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
-    await this.stripeHelper.deleteCard(user.stripeCustomerId);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: { subscriberType: SubscriberType.USER, subscriberId: userId }
+    });
+    if (!subscription?.stripeCustomerId) throw new BadRequestException('No Stripe customer found');
+    
+    await this.stripeHelper.deleteCard(subscription.stripeCustomerId);
     return {
       message: SuccessResponseMessages.successGeneral,
     };
@@ -251,6 +334,11 @@ export class UserService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
     if (!user) throw new BadRequestException(userErrorMessages.userNotExists);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: { subscriberType: SubscriberType.USER, subscriberId: userId }
+    });
+    if (!subscription?.stripeCustomerId) throw new BadRequestException('No Stripe customer found');
 
     const appURL = this.configService.get('APP_URL') || 'https://dev-app.healthytune.com';
     const finalSuccessURL = successURL || `${appURL}/home`;
@@ -259,7 +347,7 @@ export class UserService {
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
-        url: await this.stripeHelper.createCardSession({ userId }, user.stripeCustomerId, finalSuccessURL, finalCancelURL),
+        url: await this.stripeHelper.createCardSession({ userId }, subscription.stripeCustomerId, finalSuccessURL, finalCancelURL),
       },
     };
   }
