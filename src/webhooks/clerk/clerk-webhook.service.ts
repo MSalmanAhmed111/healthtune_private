@@ -2,6 +2,7 @@ import { Repository, Like } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan, Setting, User, UserPlan, UserPlanUsage, Organization, Role, Permission } from '@entities';
+import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { SuccessResponseMessages } from '@messages';
 import { ApiMessageData, PlanTypeEnum, SeedPlanNamesEnum, SettingNames, DefaultRoleEnum, OrganizationMetadata, RolePermissions } from '@types';
 import { StripeHelper } from '@helpers/stripe.helper';
@@ -203,11 +204,19 @@ export class ClerkWebhookService {
       user.privateMetadata = private_metadata ?? user.privateMetadata;
       user.unsafeMetadata = unsafe_metadata ?? user.unsafeMetadata;
       user.primaryEmailAddressId = primary_email_address_id;
+      
+      user = await this.userRepository.save(user);
 
-      // ===> to be removed later (using to sync existing user stripe customer ids)
-      if (!user.stripeCustomerId) {
-        user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
-        user = await this.userRepository.save(user);
+      let subscription = await this.userPlanRepository.findOne({ 
+        where: { subscriberType: SubscriberType.USER, subscriberId: user.id } 
+      });
+      if (subscription && !subscription.stripeCustomerId) {
+        subscription.stripeCustomerId = await this.stripeHelper.createCustomer(
+          { id: user.id, clerkUserId: user.clerkUserId }, 
+          user.email, 
+          `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`
+        );
+        await this.userPlanRepository.save(subscription);
       }
 
       // ===> to be removed later (using to sync existing user settings)
@@ -228,48 +237,53 @@ export class ClerkWebhookService {
         primaryEmailAddressId: primary_email_address_id,
       });
       user = await this.userRepository.save(user);
-      user.stripeCustomerId = await this.stripeHelper.createCustomer({ id: user.id, clerkUserId: user.clerkUserId }, user.email, `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`);
+      
       await this.settingRepository.save(settings.map((setting) => ({ ...setting, userId: user.id })));
-      await this.userRepository.update(
-        { id: user.id },
-        {
-          stripeCustomerId: user.stripeCustomerId,
-        },
+      
+      // Create default plan with Stripe customer
+      const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
+      if (!plan) return { message: 'User Created, but Unable to create default plan for user as no basic plan found.', data: user };
+
+      // Create Stripe customer (will be stored in subscription entity)
+      const stripeCustomerId = await this.stripeHelper.createCustomer(
+        { id: user.id, clerkUserId: user.clerkUserId }, 
+        user.email, 
+        `${user.firstName ? user.firstName : ''} ${user.lastName ? user.lastName : ''}`
       );
-    }
-    const plan = await this.planRepository.findOne({ where: { name: SeedPlanNamesEnum.BASIC_PLAN }, relations: ['features'] });
-    if (!plan) return { message: 'User Created, but Unable to create default plan for user as no basic plan found.', data: user };
 
-    const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
-    let userPlan = this.userPlanRepository.create({
-      userId: user.id,
-      plan,
-      startDate: new Date(),
-      endDate,
-      resetDate: endDate,
-      isSubscriptionActive: true,
-      usage: [],
-    });
-
-    for (const feature of plan.features) {
-      if (feature?.properties?.isUnlimited === null) continue;
-
-      const newUsage = this.userPlanUsageRepository.create({
-        planFeatureProperty: feature,
-        planFeaturePropertyId: feature.id,
-        usageCount: feature.properties.limit || null,
+      const endDate = plan.planType === PlanTypeEnum.MONTHLY ? new Date(new Date().setMonth(new Date().getMonth() + 1)) : plan.planType === PlanTypeEnum.YEARLY ? new Date(new Date().setFullYear(new Date().getFullYear() + 1)) : null;
+      let userPlan = this.userPlanRepository.create({
+        subscriberType: SubscriberType.USER,
+        subscriberId: user.id,
+        userId: user.id, // Legacy field for backward compatibility
+        stripeCustomerId, // Store Stripe customer in subscription entity
+        plan,
+        startDate: new Date(),
+        endDate,
+        resetDate: endDate,
+        isSubscriptionActive: true,
+        usage: [],
       });
 
-      userPlan.usage.push(newUsage);
+      for (const feature of plan.features) {
+        if (feature?.properties?.isUnlimited === null) continue;
+
+        const newUsage = this.userPlanUsageRepository.create({
+          planFeatureProperty: feature,
+          planFeaturePropertyId: feature.id,
+          usageCount: feature.properties.limit || null,
+        });
+
+        userPlan.usage.push(newUsage);
+      }
+      userPlan = await this.userPlanRepository.save(userPlan);
+      user.userPlanId = userPlan.id;
+      await this.userRepository.save({
+        id: user.id,
+        userPlanId: userPlan.id,
+      });
+      return { message: SuccessResponseMessages.successGeneral, data: user };
     }
-    userPlan = await this.userPlanRepository.save(userPlan);
-    user.userPlanId = userPlan.id;
-    await this.userRepository.save({
-      id: user.id,
-      userPlanId: userPlan.id,
-    });
-    //await this.userRepository.save(user);
-    return { message: SuccessResponseMessages.successGeneral, data: user };
   }
 
   /**
