@@ -129,4 +129,75 @@ export class AdminController {
   async getSession(@Param('id', ValidateId) sessionId: number) {
     return await this.sessionService.getSession(sessionId);
   }
+
+  // Organization Subscription Management
+
+  @Get('/organizations')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all organizations with subscriptions')
+  async getAllOrganizations(): Promise<ApiMessageData> {
+    return await this.adminService.getAllOrganizations();
+  }
+
+  @Get('/organizations/:organizationId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get organization details')
+  async getOrganizationDetails(
+    @Param('organizationId', ValidateId) organizationId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.getOrganizationDetails(organizationId);
+  }
+
+  @Get('/organizations/:organizationId/subscription')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get organization subscription details')
+  async getOrganizationSubscription(
+    @Param('organizationId', ValidateId) organizationId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.getOrganizationSubscription(organizationId);
+  }
+
+  @Get('/organizations/:organizationId/subscription-history')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get organization subscription history')
+  async getOrganizationSubscriptionHistory(
+    @Param('organizationId', ValidateId) organizationId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.getOrganizationSubscriptionHistory(organizationId);
+  }
+
+  @Post('/organizations/:organizationId/assign-plan/:planId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Assign plan to organization')
+  async assignPlanToOrganization(
+    @Param('organizationId', ValidateId) organizationId: number,
+    @Param('planId', ValidateId) planId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.assignPlanToOrganization(organizationId, planId);
+  }
+
+  @Delete('/organizations/:organizationId/subscription')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Cancel organization subscription')
+  async cancelOrganizationSubscription(
+    @Param('organizationId', ValidateId) organizationId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.cancelOrganizationSubscription(organizationId);
+  }
+
+  @Post('/organizations/:organizationId/cancel-subscription')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Cancel organization subscription')
+  async cancelOrganizationSubscriptionPost(
+    @Param('organizationId', ValidateId) organizationId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.cancelOrganizationSubscription(organizationId);
+  }
 }

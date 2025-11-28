@@ -9,7 +9,23 @@ import { StripeHelper } from '@helpers/stripe.helper';
 import { StripeWebhookModule } from 'src/webhooks/stripe/stripe-webhook.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Organization, FileStorage, Plan, PlanFeature, PlanFeatureProperty, UserPlan, UserPlanUsage, SubscriptionHistory, Appointment, Session]), FileStorageModule, StripeWebhookModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      User, 
+      Organization, 
+      FileStorage, 
+      Plan, 
+      PlanFeature, 
+      PlanFeatureProperty, 
+      UserPlan,
+      UserPlanUsage,
+      SubscriptionHistory, 
+      Appointment, 
+      Session
+    ]), 
+    FileStorageModule, 
+    StripeWebhookModule
+  ],
   controllers: [UserController],
   providers: [UserService, ClerkClientProvider, StripeHelper],
   exports: [UserService],

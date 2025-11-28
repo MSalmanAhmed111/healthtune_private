@@ -6,7 +6,7 @@ import { AUTH_TYPE_KEY } from '../decorators/auth-type.decorator';
 import { AuthTypeEnum } from '@types';
 
 @Injectable()
-export class ClerkAuthGuard extends AuthGuard('clerk') {
+export class ClerkAuthGuard extends AuthGuard(['jwt', 'clerk']) {
   constructor(private reflector: Reflector) {
     super();
   }
@@ -16,19 +16,6 @@ export class ClerkAuthGuard extends AuthGuard('clerk') {
     if (isPublic) return true;
 
     const authType: AuthTypeValue = this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getHandler()) || this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getClass()) || AuthTypeEnum.CLERK;
-
-    if (Array.isArray(authType)) {
-      if (authType.includes('admin') || authType.includes('org:admin')) {
-        return super.canActivate(context);
-      }
-      if (authType.includes('clerk')) {
-        return super.canActivate(context);
-      }
-    }
-
-    if (authType === 'admin' || authType === 'org:admin' || authType === 'clerk') {
-      return super.canActivate(context);
-    }
 
     return super.canActivate(context);
   }

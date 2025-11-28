@@ -25,6 +25,7 @@ export enum PaymentMethodEnum {
   BANK_TRANSFER = 'Bank Transfer',
   CRYPTO = 'Crypto',
   CASH = 'Cash',
+  ADMIN_ASSIGNED = 'Admin Assigned',
   OTHER = 'Other',
 }
 

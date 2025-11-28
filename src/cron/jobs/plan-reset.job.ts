@@ -70,8 +70,13 @@ export class PlanResetJob {
         if (!defaultPlan) throw new NotFoundException(PlanErrorMessages.planNotExists);
 
         const userPlansToUpdate = await this.userPlanRepository.find({
-            where: { resetDate: Between(currentStartDate, currentEndDate), isSubscriptionActive: false, user: { stripeSubscriptiontId: null }, planId: Not(defaultPlan.id) },
-            relations: ['user', 'plan', 'usage', 'usage.planFeatureProperty'],
+            where: { 
+                resetDate: Between(currentStartDate, currentEndDate), 
+                isSubscriptionActive: false, 
+                stripeSubscriptionId: null, 
+                planId: Not(defaultPlan.id) 
+            },
+            relations: ['plan', 'usage', 'usage.planFeatureProperty'],
         });
 
         if (userPlansToUpdate.length === 0) {
@@ -80,7 +85,7 @@ export class PlanResetJob {
         }
 
         for (const userPlan of userPlansToUpdate) {
-            await this.stripeWebhookServie.createNewUserPlan(userPlan.user, defaultPlan);
+            await this.stripeWebhookServie.createNewUserPlan(userPlan, defaultPlan);
 
         }
 

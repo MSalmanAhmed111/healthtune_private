@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column, JoinColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, ManyToOne, Column, JoinColumn, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { PlanFeatureProperty, UserPlan } from '@entities';
 
 @Entity('user_plan_usage')
@@ -24,4 +24,12 @@ export class UserPlanUsage {
 
   @Column({ type: 'integer', default: null, nullable: true })
   usageCount: number;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
+
+  export { UserPlanUsage as SubscriptionUsage };

@@ -33,6 +33,11 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     role: Role;
     userRole?: string;
   }> {
+    // If this is a JWT admin request, validate using JWT instead of Clerk
+    if ((req as any)._useJwt) {
+      return this.validateAdminJWT(req);
+    }
+
     const token = req.headers.authorization?.split(' ').pop();
     const organizationIdHeader = req.headers['x-organization-id'] as string | undefined;
 
@@ -130,6 +135,43 @@ export class ClerkStrategy extends PassportStrategy(Strategy, 'clerk') {
     } catch (error) {
       console.error('❌ Token validation error:', error);
       throw new UnauthorizedException('Invalid token');
+    }
+  }
+
+  private validateAdminJWT(req: Request): {
+    id: number;
+    organizationId: number | null;
+    clerkOrganizationId: string | null;
+    role: Role;
+    userRole?: string;
+  } {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      throw new UnauthorizedException('No authorization header');
+    }
+
+    try {
+      const parts = authHeader.split(' ');
+      if (parts.length !== 2 || parts[0] !== 'Bearer') {
+        throw new UnauthorizedException('Invalid authorization header format');
+      }
+
+      const token = parts[1];
+      const secret = this.configService.get<string>('jwt.accessTokenKey');
+      
+      const payload = this.jwtService.verify(token, { secret });
+      
+      // Return a user object for admin (admins don't need role info, they have direct access)
+      return {
+        id: payload.id,
+        organizationId: null,
+        clerkOrganizationId: null,
+        role: null,
+        userRole: 'admin',
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired token');
     }
   }
 }

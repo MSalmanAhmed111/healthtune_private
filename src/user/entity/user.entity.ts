@@ -91,14 +91,18 @@ export class User {
   @OneToMany(() => Patient, (patient) => patient.doctor, { cascade: true, onDelete: 'CASCADE' })
   patients: Patient[];
 
-  @Column({ type: 'varchar', nullable: true, default: null })
-  stripeCustomerId: string;
-
-  @Column({ type: 'varchar', nullable: true, default: null })
-  stripeSubscriptiontId: string;
-
   @OneToMany(() => SubscriptionHistory, (subscriptionHistory) => subscriptionHistory.user, { cascade: true, onDelete: 'CASCADE' })
   subscriptionHistory: SubscriptionHistory[];
+
+  async getEffectiveSubscription(): Promise<UserPlan | null> {
+    if (this.userPlan) {
+      return this.userPlan;
+    }
+    if (this.organization?.userPlan) {
+      return this.organization.userPlan;
+    }
+    return null;
+  }
 
   @OneToMany(() => Setting, (setting) => setting.user, { onDelete: 'CASCADE' })
   settings: Setting[];
