@@ -40,3 +40,40 @@ export class SetRolePermissionsDto {
   @IsNotEmpty()
   permissionIds: number[];
 }
+
+export class CreateOrgRoleDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsNotEmpty()
+  permissionIds: number[];
+}
+
+export class UpdateOrgRoleDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  permissionIds?: number[];
+}
+
+export class SetOrgRolePermissionsDto {
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsNotEmpty()
+  permissionIds: number[];
+}

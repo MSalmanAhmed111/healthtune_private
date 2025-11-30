@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn
 import { User } from './user.entity';
 import { Patient } from '@entities';
 import { UserPlan } from './user-plan.entity';
+import { Role } from '@entities';
 
 @Entity('organizations')
 export class Organization {
@@ -47,6 +48,9 @@ export class Organization {
 
   @OneToMany(() => User, (user) => user.organization)
   users: User[];
+
+  @OneToMany(() => Role, (role) => role.organization)
+  roles: Role[];
 
   @OneToMany(() => Patient, (patient) => patient.organization)
   patients: Patient[];

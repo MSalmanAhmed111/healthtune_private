@@ -17,6 +17,26 @@ export class ClerkAuthGuard extends AuthGuard(['jwt', 'clerk']) {
 
     const authType: AuthTypeValue = this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getHandler()) || this.reflector.get<AuthTypeValue>(AUTH_TYPE_KEY, context.getClass()) || AuthTypeEnum.CLERK;
 
-    return super.canActivate(context);
+ 
+    // Attach authType to request for use in services
+    const request = context.switchToHttp().getRequest();
+    (request as any).authType = authType;
+
+    // Call super and wait for result to ensure user is populated before we use it
+    const result = super.canActivate(context);
+    
+    // If result is a Promise, we need to handle it asynchronously
+    if (result instanceof Promise) {
+      return result.then(isValid => {
+        if (isValid) {
+          // Re-attach authType after Passport has done its thing
+          (request as any).authType = authType;
+          console.log(`🔐 Auth Guard - authType attached to request: ${JSON.stringify(authType)}`);
+        }
+        return isValid;
+      });
+    }
+    
+    return result;
   }
 }
