@@ -343,20 +343,49 @@ export class ClerkWebhookService {
     organization = await this.organizationRepository.save(organization);
     console.log(`✅ Organization created with ID: ${organization.id}`);
 
-    // Set creator as admin and setup default roles
-    if (created_by) {
-      console.log(`👑 Setting creator as admin...`);
-      await this.setOrganizationCreatorAsAdmin(created_by, organization);
-    }
+    try {
+      const defaultRolesCreated = await this.createDefaultOrganizationRoles(organization);
+      console.log(`✅ Default roles created: ${defaultRolesCreated}`);
 
-    return {
-      message: 'Organization created successfully with admin assigned',
-      data: {
-        organization,
-        adminAssigned: !!created_by,
-        defaultRolesCreated: !public_metadata?.roles,
-      },
-    };
+
+      if (created_by) {
+        console.log(`👑 Setting creator as admin...`);
+        try {
+          await this.setOrganizationCreatorAsAdmin(created_by, organization);
+          console.log(`✅ Admin role assigned successfully`);
+        } catch (adminError) {
+          console.error(`⚠️ Could not set creator as admin: ${adminError.message}`);
+        }
+      }
+
+      return {
+        message: 'Organization created successfully with default roles created',
+        data: {
+          organization,
+          adminAssigned: !!created_by,
+          defaultRolesCreated,
+        },
+      };
+    } catch (setupError) {
+      console.error(`❌ CRITICAL: Failed to setup organization ${organization.id}:`, setupError.message);
+      
+      // Delete the organization since setup failed
+      try {
+        await this.organizationRepository.remove(organization);
+        console.log(`🗑️ Deleted incomplete organization: ${organization.id}`);
+      } catch (deleteError) {
+        console.error(`❌ Failed to delete incomplete organization:`, deleteError.message);
+      }
+
+      return {
+        message: 'Organization creation failed - could not setup default roles',
+        data: {
+          organization,
+          error: setupError.message,
+          processed: false,
+        },
+      };
+    }
   }
 
   /**
@@ -823,31 +852,136 @@ export class ClerkWebhookService {
     return permissions;
   }
 
+  private async createDefaultOrganizationRoles(organization: Organization): Promise<boolean> {
+    try {
+      console.log(`🎭 Creating default roles for organization: ${organization.name}`);
+
+      const systemRoles = await this.roleRepository.find({
+        where: { organizationId: null, isSystemRole: true },
+        relations: ['permissions'],
+      });
+
+      if (systemRoles.length === 0) {
+        console.error('❌ CRITICAL: No system role templates found. Run roles seeder first.');
+        console.error('   Execute: npm run seed:dev');
+        throw new Error('System role templates not found. Run roles seeder.');
+      }
+
+      console.log(`📋 Found ${systemRoles.length} system role templates`);
+
+      let rolesCreated = 0;
+      const failedRoles = [];
+
+      for (const systemRole of systemRoles) {
+        try {
+          console.log(`\n📝 Processing system role: ${systemRole.name} (${systemRole.key})`);
+          console.log(`   - Permissions in template: ${systemRole.permissions?.length || 0}`);
+
+          // Generate organization-specific role key
+          const orgRoleKey = `org_${organization.id}_${systemRole.key.replace('org:', '')}`;
+
+          // Check if this role already exists for this organization
+          const existingRole = await this.roleRepository.findOne({
+            where: { organizationId: organization.id, key: orgRoleKey },
+          });
+
+          if (existingRole) {
+            console.log(`📋 Organization role already exists: ${systemRole.name}`);
+            
+            // Verify it has permissions
+            if (!existingRole.permissions || existingRole.permissions.length === 0) {
+              console.warn(`   ⚠️ WARNING: Existing role has NO permissions! Updating...`);
+              existingRole.permissions = systemRole.permissions;
+              await this.roleRepository.save(existingRole);
+              console.log(`   ✅ Updated permissions (${systemRole.permissions?.length || 0})`);
+            }
+            
+            rolesCreated++;
+            continue;
+          }
+
+          // Validate that system role has permissions
+          if (!systemRole.permissions || systemRole.permissions.length === 0) {
+            console.error(`❌ ERROR: System role ${systemRole.name} has NO permissions!`);
+            console.error(`   This means the seeder was run AFTER creating organizations.`);
+            console.error(`   Or system roles were not properly created.`);
+            throw new Error(`System role ${systemRole.name} missing permissions`);
+          }
+
+          // Create organization-specific role with permissions
+          const orgRole = this.roleRepository.create({
+            key: orgRoleKey,
+            name: systemRole.name,
+            description: `${systemRole.description} (${organization.name})`,
+            organizationId: organization.id,
+            isSystemRole: false,
+            permissions: systemRole.permissions, // Copy permissions from system template
+          });
+
+          const savedRole = await this.roleRepository.save(orgRole);
+          
+          console.log(`✅ Created organization role: ${systemRole.name}`);
+          console.log(`   - Permissions assigned: ${savedRole.permissions?.length || 0}`);
+          
+          rolesCreated++;
+        } catch (roleError) {
+          console.error(`❌ Error creating role ${systemRole.name}:`, roleError.message);
+          failedRoles.push(systemRole.name);
+        }
+      }
+
+      if (failedRoles.length > 0) {
+        console.error(`⚠️ Failed to create ${failedRoles.length} roles: ${failedRoles.join(', ')}`);
+        throw new Error(`Failed to create roles: ${failedRoles.join(', ')}`);
+      }
+
+      console.log(`🎉 Created ${rolesCreated} default roles for organization: ${organization.name}`);
+      return rolesCreated > 0;
+    } catch (error) {
+      console.error('❌ Error creating default organization roles:', error.message);
+      throw error;
+    }
+  }
+
   /**
    * Set the organization creator as admin
    */
   private async setOrganizationCreatorAsAdmin(creatorClerkUserId: string, organization: Organization): Promise<void> {
     try {
-      // Find the user who created the organization
-      const creatorUser = await this.userRepository.findOne({
-        where: { clerkUserId: creatorClerkUserId },
+      // Find the user who created the organization - with retry since user.created webhook may not have completed
+      console.log(`👑 Finding organization creator: ${creatorClerkUserId}`);
+      const creatorUser = await this.findUserWithRetry(creatorClerkUserId, 5, 1000);
+
+      if (!creatorUser) {
+        console.warn(`⚠️ Creator user not found with Clerk ID: ${creatorClerkUserId} (will be assigned via membership webhook)`);
+        return;
+      }
+
+      // Find the organization admin role
+      const adminRole = await this.roleRepository.findOne({
+        where: { 
+          organizationId: organization.id, 
+          key: `org_${organization.id}_admin` 
+        },
       });
 
-      if (creatorUser) {
-        // Set the creator as admin of the organization
-        creatorUser.organization = organization;
-        creatorUser.organizationId = organization.id;
-        creatorUser.clerkOrganizationId = organization.clerkOrganizationId;
-        creatorUser.roleId = await this.getDefaultRole(`org:${DefaultRoleEnum.ADMIN}`);
-
-        await this.userRepository.save(creatorUser);
-
-        console.log(`Set user ${creatorUser.email} as admin of organization ${organization.name}`);
-      } else {
-        console.warn(`Creator user not found with Clerk ID: ${creatorClerkUserId}`);
+      if (!adminRole) {
+        console.error(`❌ CRITICAL: Admin role not found for organization ${organization.id}`);
+        throw new Error(`Admin role missing for organization ${organization.id}`);
       }
+
+      // Set the creator as admin of the organization
+      creatorUser.organization = organization;
+      creatorUser.organizationId = organization.id;
+      creatorUser.clerkOrganizationId = organization.clerkOrganizationId;
+      creatorUser.roleId = adminRole.id;
+
+      await this.userRepository.save(creatorUser);
+
+      console.log(`👑 Set user ${creatorUser.email} as admin of organization ${organization.name}`);
     } catch (error) {
-      console.error('Error setting organization creator as admin:', error);
+      console.error('❌ Error setting organization creator as admin:', error.message);
+      throw error;
     }
   }
 

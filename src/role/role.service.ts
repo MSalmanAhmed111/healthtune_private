@@ -410,15 +410,41 @@ export class RoleService {
   // ==================== SHARED METHODS (Works for both system and org roles) ====================
   private getUserOrganizationId(req: Request): number {
     const userOrgId = (req as any).user?.organizationId;
-    if (!userOrgId) {
-      throw new BadRequestException('User must have an organization assigned');
+
+    if (userOrgId) {
+      return userOrgId;
     }
-    return userOrgId;
+
+    const orgIdHeader = req.headers['x-organization-id'] as string | undefined;
+    if (orgIdHeader && !isNaN(parseInt(orgIdHeader))) {
+      const orgId = parseInt(orgIdHeader);
+      return orgId;
+    }
+    throw new BadRequestException('Organization ID not found in request');
   }
 
   private isOrgAdmin(req: Request): boolean {
+    // Check if endpoint allows org:admin auth type from @AuthType decorator
     const authType = (req as any).authType;
-    return authType === 'org:admin';
+    
+
+    // Check if authType includes or equals 'org:admin'
+    let isOrgAdminEndpoint = false;
+    
+    if (typeof authType === 'string') {
+      isOrgAdminEndpoint = authType === 'org:admin';
+    } else if (Array.isArray(authType)) {
+      isOrgAdminEndpoint = authType.includes('org:admin');
+    }
+
+  if (isOrgAdminEndpoint && Array.isArray(authType) && authType.includes('admin')) {
+      const userOrgId = (req as any).user?.organizationId;
+      if (!userOrgId) {
+        return false;
+      }
+    }
+
+    return isOrgAdminEndpoint;
   }
 
   async createSharedRole(req: Request, createRoleDto: CreateRoleDto | CreateOrgRoleDto): Promise<ApiMessageData> {
