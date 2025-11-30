@@ -322,10 +322,50 @@ export class ClerkWebhookService {
     // Check if organization already exists
     let organization = await this.organizationRepository.findOne({
       where: { clerkOrganizationId: id },
+      relations: ['roles'],
     });
 
     if (organization) {
-      console.log(`⚠️ Organization already exists, updating instead`);
+      console.log(`⚠️ Organization already exists, ensuring roles are created`);
+      // Still need to create default roles if they don't exist yet
+      if (!organization.roles || organization.roles.length === 0) {
+        console.log(`📋 Organization has no roles yet, creating defaults...`);
+        try {
+          const defaultRolesCreated = await this.createDefaultOrganizationRoles(organization);
+          console.log(`✅ Default roles created: ${defaultRolesCreated}`);
+          
+          if (created_by) {
+            console.log(`👑 Setting creator as admin...`);
+            try {
+              await this.setOrganizationCreatorAsAdmin(created_by, organization);
+              console.log(`✅ Admin role assigned successfully`);
+            } catch (adminError) {
+              console.error(`⚠️ Could not set creator as admin: ${adminError.message}`);
+            }
+          }
+
+          return {
+            message: 'Organization roles created successfully',
+            data: {
+              organization,
+              adminAssigned: !!created_by,
+              defaultRolesCreated,
+            },
+          };
+        } catch (setupError) {
+          console.error(`❌ CRITICAL: Failed to setup roles for organization ${organization.id}:`, setupError.message);
+          return {
+            message: 'Failed to create default roles',
+            data: {
+              organization,
+              error: setupError.message,
+              processed: false,
+            },
+          };
+        }
+      } else {
+        console.log(`✅ Organization already has ${organization.roles.length} roles`);
+      }
       return await this.handleOrganizationUpdated(eventData);
     }
 
@@ -398,6 +438,7 @@ export class ClerkWebhookService {
 
     let organization = await this.organizationRepository.findOne({
       where: { clerkOrganizationId: id },
+      relations: ['roles'],
     });
 
     if (!organization) {
@@ -414,6 +455,31 @@ export class ClerkWebhookService {
 
     organization = await this.organizationRepository.save(organization);
     console.log(`✅ Organization updated`);
+
+    if (!organization.roles || organization.roles.length === 0) {
+      console.log(`📋 Organization has no roles yet, creating defaults...`);
+      try {
+        const defaultRolesCreated = await this.createDefaultOrganizationRoles(organization);
+        console.log(`✅ Default roles created: ${defaultRolesCreated}`);
+
+        return {
+          message: 'Organization updated and default roles created',
+          data: {
+            organization,
+            defaultRolesCreated,
+          },
+        };
+      } catch (setupError) {
+        console.error(`⚠️ Could not create default roles during update:`, setupError.message);
+        return {
+          message: 'Organization updated but failed to create default roles',
+          data: {
+            organization,
+            error: setupError.message,
+          },
+        };
+      }
+    }
 
     return {
       message: 'Organization updated successfully',
