@@ -36,14 +36,24 @@ export class EncryptionService {
 
   decrypt(encryptedData: string): string {
     try {
-      const parts = encryptedData.split(':');
-      if (parts.length !== 3) {
+      // Split only on first 2 colons (iv:authTag:encrypted)
+      // The encrypted part might contain colons, so we use indexOf
+      const colonIndex1 = encryptedData.indexOf(':');
+      if (colonIndex1 === -1) {
+        throw new Error('Invalid encrypted data format');
+      }
+      
+      const colonIndex2 = encryptedData.indexOf(':', colonIndex1 + 1);
+      if (colonIndex2 === -1) {
         throw new Error('Invalid encrypted data format');
       }
 
-      const iv = Buffer.from(parts[0], 'hex');
-      const authTag = Buffer.from(parts[1], 'hex');
-      const encrypted = parts[2];
+      const ivHex = encryptedData.substring(0, colonIndex1);
+      const authTagHex = encryptedData.substring(colonIndex1 + 1, colonIndex2);
+      const encrypted = encryptedData.substring(colonIndex2 + 1);
+
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
 
       const decipher = createDecipheriv(this.algorithm, this.encryptionKey, iv);
       decipher.setAuthTag(authTag);
