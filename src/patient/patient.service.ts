@@ -8,6 +8,7 @@ import { Appointment, FileStorage, Patient, Setting, User } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { EncryptionService } from 'src/common/encryption/encryption.service';
 import moment from 'moment-timezone';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class PatientService {
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   async createPatient(reqBody: CreatePatientDto, userId: number): Promise<ApiMessageData> {
@@ -109,6 +111,9 @@ export class PatientService {
         : null,
     });
 
+    // HIPAA: Encrypt PHI fields before saving
+    patient = this.encryptPhiFields(patient);
+
     if (profileImage && profileImage !== patient.profileImage) {
       const imageExists = this.fileStorageRepository.findOne({ where: { id: profileImage } });
       if (!imageExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
@@ -116,17 +121,32 @@ export class PatientService {
     }
 
     patient = await this.patientRepository.save(patient);
+
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
+
+    // HIPAA: Decrypt PHI fields for response
+    patient = this.decryptPatientData(patient);
+
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
-  async updatePatient(patientId: number, reqBody: UpdatePatientDto): Promise<ApiMessageData> {
+  async updatePatient(patientId: number, reqBody: UpdatePatientDto, userId: number): Promise<ApiMessageData> {
     const { firstName, lastName, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, contactDetails, medicalDetails, insuranceDetails, admissionDetails } = reqBody;
 
     let patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!this.dataAccessService.canAccessResource(user, patient.doctorId, user.clerkOrganizationId)) {
+      throw new ForbiddenException('You do not have permission to update this patient');
+    }
 
     patient.firstName = firstName || patient.firstName;
     patient.lastName = lastName || patient.lastName;
@@ -151,11 +171,18 @@ export class PatientService {
       patient.profileImage = profileImage;
     }
 
+    // HIPAA: Encrypt PHI fields before saving
+    patient = this.encryptPhiFields(patient);
+
     patient = await this.patientRepository.save(patient);
+
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
+
+    // HIPAA: Decrypt PHI fields for response
+    patient = this.decryptPatientData(patient);
 
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
@@ -219,6 +246,9 @@ export class PatientService {
       }
       const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, relations: ['session'], order: { appointmentDate: 'ASC' } });
       patient.appointments = appointments;
+
+      // HIPAA: Decrypt PHI fields for response
+      Object.assign(patient, this.decryptPatientData(patient));
     }
 
     return {
@@ -271,6 +301,9 @@ export class PatientService {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
         if (image) patient.profileImage = { id: image.id, fileName: image.name };
       }
+
+      // HIPAA: Decrypt PHI fields for response
+      Object.assign(patient, this.decryptPatientData(patient));
     }
 
     return {
@@ -308,7 +341,11 @@ export class PatientService {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
-    return { message: SuccessResponseMessages.successGeneral, data: patient };
+
+    // HIPAA: Decrypt PHI fields for response
+    const decryptedPatient = this.decryptPatientData(patient);
+
+    return { message: SuccessResponseMessages.successGeneral, data: decryptedPatient };
   }
 
   async deletePatient(patientId: number, userId: number): Promise<ApiMessageData> {
@@ -338,6 +375,72 @@ export class PatientService {
       if (previousImageExists) await this.fileStorageService.deleteFileStorage(patient.profileImage as number);
     }
     await this.patientRepository.delete({ id: patientId });
+
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
+
+  private encryptPhiFields(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const encrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (encrypted[field] && typeof encrypted[field] === 'string') {
+        encrypted[field] = this.encryptionService.encrypt(encrypted[field]);
+      }
+    });
+
+    return encrypted;
+  }
+
+
+  private decryptPatientData(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const decrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
+        try {
+          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
+        } catch (error) {
+          console.warn(`Failed to decrypt field ${field}:`, error.message);
+          // Leave encrypted if decryption fails
+        }
+      }
+    });
+
+    return decrypted;
+  }
 }
+
