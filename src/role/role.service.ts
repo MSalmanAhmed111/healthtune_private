@@ -21,7 +21,7 @@ export class RoleService {
   async getAllRoles(): Promise<ApiMessageData> {
     try {
       const roles = await this.roleRepository.find({
-        where: { organizationId: null },
+        where: { isSystemRole: true },
         relations: ['permissions'],
         order: { createdAt: 'DESC' },
       });
@@ -38,7 +38,7 @@ export class RoleService {
   async getRoleById(id: number): Promise<ApiMessageData> {
     try {
       const role = await this.roleRepository.findOne({
-        where: { id, organizationId: null },
+        where: { id, isSystemRole: true },
         relations: ['permissions'],
       });
 
@@ -62,7 +62,7 @@ export class RoleService {
 
       // Check if key already exists for system roles
       const existingRole = await this.roleRepository.findOne({
-        where: { key, organizationId: null },
+        where: { key, isSystemRole: true },
       });
       if (existingRole) {
         throw new BadRequestException(roleErrorMessages.roleKeyAlreadyExists);
@@ -99,7 +99,7 @@ export class RoleService {
   async updateRole(id: number, updateRoleDto: UpdateRoleDto): Promise<ApiMessageData> {
     try {
       const role = await this.roleRepository.findOne({
-        where: { id, organizationId: null },
+        where: { id, isSystemRole: true },
         relations: ['permissions'],
       });
 
@@ -137,7 +137,7 @@ export class RoleService {
   async deleteRole(id: number): Promise<ApiMessageData> {
     try {
       const role = await this.roleRepository.findOne({
-        where: { id, organizationId: null },
+        where: { id, isSystemRole: true },
         relations: ['users'],
       });
 
@@ -184,7 +184,7 @@ export class RoleService {
       const { permissionIds } = setPermissionsDto;
 
       const role = await this.roleRepository.findOne({
-        where: { id: roleId, organizationId: null },
+        where: { id: roleId, isSystemRole: true },
         relations: ['permissions'],
       });
 
