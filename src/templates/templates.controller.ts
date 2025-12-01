@@ -18,7 +18,7 @@ export class TemplatesController {
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new template')
   async createTemplate(@Body() reqBody: CreateTemplateDto, @Req() req: Request): Promise<ApiMessageData> {
-    return await this.templatesService.createTemplate(reqBody, req.headers['accept-language']);
+    return await this.templatesService.createTemplate(reqBody, req.headers['accept-language'], +req.user.id);
   }
 
   @Put('/:id')

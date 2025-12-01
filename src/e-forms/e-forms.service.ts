@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Patient, EDocument, EDocumentIssuance } from '@entities';
+import { Patient, EDocument, EDocumentIssuance, User, UserPlanUsage } from '@entities';
 import { ILike, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum } from '@types';
 import { GetAllIssuedDocumentsDto, PaginationQueryDto, UpsertDocumentDto } from 'src/dto';
 import { EDocumentErrorMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
 import { UpsertDocumentIssuanceDto } from './dto/issue-document.dto';
@@ -16,6 +16,10 @@ export class EDocumentService {
     private readonly edocumentRepository: Repository<EDocument>,
     @InjectRepository(EDocumentIssuance)
     private readonly edocumentIssuanceRepository: Repository<EDocumentIssuance>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
   ) {}
 
   async upsertDocument(reqBody: UpsertDocumentDto, userId: number): Promise<ApiMessageData> {
@@ -72,6 +76,23 @@ export class EDocumentService {
   async issueDocument(upsertDocumentIssuanceDto: UpsertDocumentIssuanceDto, doctorId: number): Promise<ApiMessageData> {
     const { documentId, issuedToOrgCode, description, patientId, fieldValues, businessProductId, tagId } = upsertDocumentIssuanceDto;
 
+    // Get user with subscription info
+    const user = await this.userRepository.findOne({
+      where: { id: doctorId },
+      relations: [
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
     const document = await this.edocumentRepository.findOne({ where: { id: documentId } });
     if (!document) throw new NotFoundException(EDocumentErrorMessages.edocumentNotExists);
 
@@ -87,6 +108,18 @@ export class EDocumentService {
 
     if (new Set(inputFieldIds).size !== inputFieldIds.length) {
       throw new BadRequestException('Field IDs must be unique in fieldValues');
+    }
+
+    // Check document generation usage before issuing document
+    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
+    if (effectiveSubscription) {
+      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.DOCUMENT_GENERATION);
+      if (!usage) {
+        throw new BadRequestException('Document generation is not available in your current plan');
+      }
+      if (usage.usageCount <= 0) throw new BadRequestException('No document generation credits left');
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
     }
 
     let issuance = this.edocumentIssuanceRepository.create({

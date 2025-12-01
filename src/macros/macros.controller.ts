@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Delete, Req } from '@nestjs/common';
 import { MacrosService } from './macros.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData, PermissionEnum } from '@types';
@@ -6,6 +6,7 @@ import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { SwaggerApiResponse } from '@decorators';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { Request } from 'express';
 
 @ApiTags('Macros')
 @Controller('macros')
@@ -16,8 +17,8 @@ export class MacrosController {
   @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.CREATED)
   @SwaggerApiResponse('Create a new macro')
-  async createMacro(@Body() reqBody: CreateMacroDto): Promise<ApiMessageData> {
-    return await this.macrosService.createMacro(reqBody);
+  async createMacro(@Body() reqBody: CreateMacroDto, @Req() req: Request): Promise<ApiMessageData> {
+    return await this.macrosService.createMacro(reqBody, +req.user.id);
   }
 
   @Put('/:id')

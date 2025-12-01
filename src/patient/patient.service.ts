@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, MoreThanOrEqual, Not, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, InsuranceTypeEnum, SettingNames, UserRolesEnum } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, InsuranceTypeEnum, SettingNames, UserRolesEnum, PlanFeatureNameEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { Appointment, FileStorage, Patient, Setting, User } from '@entities';
+import { Appointment, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
@@ -23,6 +23,8 @@ export class PatientService {
     private readonly appointmentRepository: Repository<Appointment>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
@@ -32,7 +34,17 @@ export class PatientService {
     // Get user and check permissions
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['organization'],
+      relations: [
+        'organization',
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ],
     });
     if (!user) throw new NotFoundException('User not found');
 

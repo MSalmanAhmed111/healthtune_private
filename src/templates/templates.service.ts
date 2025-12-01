@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Template } from '@entities';
+import { Template, User, UserPlanUsage } from '@entities';
 import { Brackets, Not, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum } from '@types';
 import { CreateTemplateDto, PaginationQueryDto, UpdateTemplateDto } from '@dtos';
 import { TemplateErrorMessages, SuccessResponseMessages } from '@messages';
 
@@ -11,10 +11,44 @@ export class TemplatesService {
   constructor(
     @InjectRepository(Template)
     private readonly templateRepository: Repository<Template>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
   ) {}
 
-  async createTemplate(reqBody: CreateTemplateDto, language: string): Promise<ApiMessageData> {
+  async createTemplate(reqBody: CreateTemplateDto, language: string, userId: number): Promise<ApiMessageData> {
     const { title, prompt } = reqBody;
+
+    // Get user with subscription info
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: [
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Check template customization usage before creating template
+    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
+    if (effectiveSubscription) {
+      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION);
+      if (!usage) {
+        throw new BadRequestException('Template customization is not available in your current plan');
+      }
+      if (usage.usageCount <= 0) throw new BadRequestException('No template customization credits left');
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
+    }
+
     let template = await this.templateRepository.findOne({ where: { title } });
     if (template) throw new BadRequestException(TemplateErrorMessages.templateAlreadyExists);
     template = this.templateRepository.create({ title, prompt, language });

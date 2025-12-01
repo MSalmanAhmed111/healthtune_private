@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Macro } from '@entities';
+import { Macro, User, UserPlanUsage } from '@entities';
 import { Brackets, Not, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum } from '@types';
 import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from 'src/dto';
 import { MacroErrorMessages, SuccessResponseMessages } from '@messages';
 
@@ -11,10 +11,44 @@ export class MacrosService {
   constructor(
     @InjectRepository(Macro)
     private readonly macroRepository: Repository<Macro>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserPlanUsage)
+    private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
   ) {}
 
-  async createMacro(reqBody: CreateMacroDto): Promise<ApiMessageData> {
+  async createMacro(reqBody: CreateMacroDto, userId: number): Promise<ApiMessageData> {
     const { name, content } = reqBody;
+
+    // Get user with subscription info
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: [
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Check macro replacement usage before creating macro
+    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
+    if (effectiveSubscription) {
+      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.MACRO_REPLACEMENT);
+      if (!usage) {
+        throw new BadRequestException('Macro replacement is not available in your current plan');
+      }
+      if (usage.usageCount <= 0) throw new BadRequestException('No macro replacement credits left');
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
+    }
+
     let macro = await this.macroRepository.findOne({ where: { name } });
     if (macro) throw new BadRequestException(MacroErrorMessages.macroAlreadyExists);
     macro = this.macroRepository.create({ name, content });

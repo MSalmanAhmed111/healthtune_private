@@ -50,20 +50,37 @@ export class SessionService {
     let { patientId, sex } = reqBody;
     let patientName = null;
 
-    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['userPlan', 'userPlan.usage', 'userPlan.usage.planFeatureProperty', 'userPlan.usage.planFeatureProperty.feature'] });
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: [
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ] 
+    });
     let appointment = null;
     if (appointmentId) {
       appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
       if (!appointment) throw new NotFoundException(SessionErrorMessages.appointmentNotFound);
     }
 
-    if (user.userPlan && user.userPlan.usage.length > 0) {
-      const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-      if (usage) {
-        if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
-        usage.usageCount = usage.usageCount - 1;
-        await this.userPlanUsageRepository.save(usage);
+    // Get effective subscription (user plan first, then organization plan)
+    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
+    
+    if (effectiveSubscription) {
+      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
+      if (!usage) {
+        throw new BadRequestException('Session creation is not available in your current plan');
       }
+      if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
     }
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
