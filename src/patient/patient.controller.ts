@@ -25,8 +25,8 @@ export class PatientController {
   @Permissions(PermissionEnum.CREATE_PATIENT)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update patient')
-  async updatePatient(@Param('id', ValidateId) patientId: number, @Body() reqBody: UpdatePatientDto) {
-    return await this.patientService.updatePatient(patientId, reqBody);
+  async updatePatient(@Param('id', ValidateId) patientId: number, @Body() reqBody: UpdatePatientDto, @Req() req: Request) {
+    return await this.patientService.updatePatient(patientId, reqBody, +req.user.id);
   }
 
   @Get('/by-appointment')

@@ -8,6 +8,7 @@ import { Appointment, FileStorage, Patient, Setting, User } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { EncryptionService } from 'src/common/encryption/encryption.service';
 import moment from 'moment-timezone';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class PatientService {
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   async createPatient(reqBody: CreatePatientDto, userId: number): Promise<ApiMessageData> {
@@ -109,6 +111,9 @@ export class PatientService {
         : null,
     });
 
+    // HIPAA: Encrypt PHI fields before saving
+    patient = this.encryptPhiFields(patient);
+
     if (profileImage && profileImage !== patient.profileImage) {
       const imageExists = this.fileStorageRepository.findOne({ where: { id: profileImage } });
       if (!imageExists) throw new NotFoundException(ErrorResponseMessages.fileNotExists);
@@ -116,17 +121,32 @@ export class PatientService {
     }
 
     patient = await this.patientRepository.save(patient);
+
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
+
+    // HIPAA: Decrypt PHI fields for response
+    patient = this.decryptPatientData(patient);
+
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
-  async updatePatient(patientId: number, reqBody: UpdatePatientDto): Promise<ApiMessageData> {
+  async updatePatient(patientId: number, reqBody: UpdatePatientDto, userId: number): Promise<ApiMessageData> {
     const { firstName, lastName, dateOfBirth, gender, maritalStatus, nationality, occupation, profileImage, address, contactDetails, medicalDetails, insuranceDetails, admissionDetails } = reqBody;
 
     let patient = await this.patientRepository.findOne({ where: { id: patientId } });
     if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!this.dataAccessService.canAccessResource(user, patient.doctorId, user.clerkOrganizationId)) {
+      throw new ForbiddenException('You do not have permission to update this patient');
+    }
 
     patient.firstName = firstName || patient.firstName;
     patient.lastName = lastName || patient.lastName;
@@ -151,11 +171,18 @@ export class PatientService {
       patient.profileImage = profileImage;
     }
 
+    // HIPAA: Encrypt PHI fields before saving
+    patient = this.encryptPhiFields(patient);
+
     patient = await this.patientRepository.save(patient);
+
     if (patient.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
+
+    // HIPAA: Decrypt PHI fields for response
+    patient = this.decryptPatientData(patient);
 
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
@@ -168,28 +195,16 @@ export class PatientService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    //const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     let qb = this.patientRepository.createQueryBuilder('patient');
 
-    if (query) {
-      qb.andWhere(
-        new Brackets((qb) => {
-          qb.where('LOWER(patient.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.mreNumber) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.email) LIKE LOWER(:query)', { query: `%${query}%` });
-        }),
-      );
-    }
-
-    // Apply organization-based filtering
-    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
-
     if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
+
+    // Apply organization-based filtering
+    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
 
     if (user.role.name === UserRolesEnum.DOCTOR) {
       const doctorSetting = await this.settingsRepository.findOne({
@@ -207,12 +222,32 @@ export class PatientService {
       }
     }
 
-    qb.skip((page - 1) * limit).take(limit);
+    // Get all matching patients (will filter by query in memory)
+    const allPatients = await qb.orderBy('patient.id', sort).getMany();
 
-    const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
+    // Decrypt all patients
+    const decryptedPatients = allPatients.map(patient => this.decryptPatientData(patient));
+
+    // Filter by query on decrypted data
+    let filteredPatients = decryptedPatients;
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      filteredPatients = decryptedPatients.filter(patient => 
+        (patient.firstName && patient.firstName.toLowerCase().includes(lowerQuery)) ||
+        (patient.lastName && patient.lastName.toLowerCase().includes(lowerQuery)) ||
+        (patient.mreNumber && patient.mreNumber.toLowerCase().includes(lowerQuery)) ||
+        (patient.email && patient.email.toLowerCase().includes(lowerQuery))
+      );
+    }
+
+    // Apply pagination on filtered results
+    const startIndex = (page - 1) * limit;
+    const paginatedPatients = filteredPatients.slice(startIndex, startIndex + limit);
+    const total = filteredPatients.length;
     const lastPage = Math.ceil(total / limit);
 
-    for (const patient of patients) {
+    // Load profile images and appointments for paginated results
+    for (const patient of paginatedPatients) {
       if (patient.profileImage) {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
         if (image) patient.profileImage = { id: image.id, fileName: image.name };
@@ -223,7 +258,7 @@ export class PatientService {
 
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: patients,
+      data: paginatedPatients,
       page,
       total,
       lastPage,
@@ -238,35 +273,50 @@ export class PatientService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // const userContext = this.roleBasedAccessService.getUserOrganizationContext(user);
     const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
     let qb = this.patientRepository.createQueryBuilder('patient');
 
-    if (query) {
-      qb.andWhere(
-        new Brackets((qb) => {
-          qb.where('LOWER(patient.firstName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.lastName) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.mreNumber) LIKE LOWER(:query)', { query: `%${query}%` })
-            .orWhere('LOWER(patient.email) LIKE LOWER(:query)', { query: `%${query}%` });
-        }),
-      );
-    }
-
-    // Apply organization-based filtering
-    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
-
+    // Only apply database filters for non-encrypted fields
+    // Skip query filter here as encrypted fields can't be searched at DB level
     if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
     if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
     if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
 
-    qb.skip((page - 1) * limit).take(limit);
+    // Apply organization-based filtering
+    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
 
-    const [patients, total] = await qb.orderBy('patient.id', sort).getManyAndCount();
+    // Get all matching patients (will filter by query in memory)
+    const allPatients = await qb.orderBy('patient.id', sort).getMany();
+
+    // Decrypt all patients
+    const decryptedPatients = allPatients.map(patient => {
+      if (patient.profileImage) {
+        // Handle profile image separately
+      }
+      return this.decryptPatientData(patient);
+    });
+
+    // Filter by query on decrypted data
+    let filteredPatients = decryptedPatients;
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      filteredPatients = decryptedPatients.filter(patient => 
+        (patient.firstName && patient.firstName.toLowerCase().includes(lowerQuery)) ||
+        (patient.lastName && patient.lastName.toLowerCase().includes(lowerQuery)) ||
+        (patient.mreNumber && patient.mreNumber.toLowerCase().includes(lowerQuery)) ||
+        (patient.email && patient.email.toLowerCase().includes(lowerQuery))
+      );
+    }
+
+    // Apply pagination on filtered results
+    const startIndex = (page - 1) * limit;
+    const paginatedPatients = filteredPatients.slice(startIndex, startIndex + limit);
+    const total = filteredPatients.length;
     const lastPage = Math.ceil(total / limit);
 
-    for (const patient of patients) {
+    // Load profile images for paginated results
+    for (const patient of paginatedPatients) {
       if (patient.profileImage) {
         const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
         if (image) patient.profileImage = { id: image.id, fileName: image.name };
@@ -275,7 +325,7 @@ export class PatientService {
 
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: patients,
+      data: paginatedPatients,
       page,
       total,
       lastPage,
@@ -308,7 +358,11 @@ export class PatientService {
       const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
       if (image) patient.profileImage = { id: image.id, fileName: image.name };
     }
-    return { message: SuccessResponseMessages.successGeneral, data: patient };
+
+    // HIPAA: Decrypt PHI fields for response
+    const decryptedPatient = this.decryptPatientData(patient);
+
+    return { message: SuccessResponseMessages.successGeneral, data: decryptedPatient };
   }
 
   async deletePatient(patientId: number, userId: number): Promise<ApiMessageData> {
@@ -338,6 +392,72 @@ export class PatientService {
       if (previousImageExists) await this.fileStorageService.deleteFileStorage(patient.profileImage as number);
     }
     await this.patientRepository.delete({ id: patientId });
+
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
+
+  private encryptPhiFields(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const encrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (encrypted[field] && typeof encrypted[field] === 'string') {
+        encrypted[field] = this.encryptionService.encrypt(encrypted[field]);
+      }
+    });
+
+    return encrypted;
+  }
+
+
+  private decryptPatientData(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const decrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
+        try {
+          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
+        } catch (error) {
+          console.warn(`Failed to decrypt field ${field}:`, error.message);
+          // Leave encrypted if decryption fails
+        }
+      }
+    });
+
+    return decrypted;
+  }
 }
+

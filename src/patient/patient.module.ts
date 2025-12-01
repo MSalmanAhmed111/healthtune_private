@@ -5,12 +5,14 @@ import { FileStorage, Patient, Setting, User, Appointment } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileStorageModule } from 'src/file-storage/file-storage.module';
 import { CommonServicesModule } from 'src/common/services/common-services.module';
+import { EncryptionModule } from 'src/common/encryption/encryption.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Patient, User, FileStorage, Setting, Appointment]), 
     FileStorageModule,
-    CommonServicesModule
+    CommonServicesModule,
+    EncryptionModule
   ],
   controllers: [PatientController],
   providers: [PatientService],
