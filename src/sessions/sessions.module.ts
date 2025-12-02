@@ -8,9 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { storageProviderFactory } from 'src/common/providers';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { EncryptionModule } from 'src/common/encryption/encryption.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Organization, User, UserPlanUsage, Appointment, Session, Note, Transcript, DoctorNotes, DiagnosisCodes, Patient, Setting, FileStorage, SessionCosting]), FileStorageModule],
+  imports: [TypeOrmModule.forFeature([Organization, User, UserPlanUsage, Appointment, Session, Note, Transcript, DoctorNotes, DiagnosisCodes, Patient, Setting, FileStorage, SessionCosting]), FileStorageModule, EncryptionModule],
   controllers: [SessionController],
   providers: [
     RoleBasedAccessService,

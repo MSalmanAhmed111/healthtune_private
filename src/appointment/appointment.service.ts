@@ -7,6 +7,7 @@ import { AppointmentErrorMessages, PatientErrorMessages, SuccessResponseMessages
 import { Appointment, Patient, User } from '@entities';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { EncryptionService } from 'src/common/encryption/encryption.service';
 
 @Injectable()
 export class AppointmentService {
@@ -19,6 +20,7 @@ export class AppointmentService {
     private readonly userRepository: Repository<User>,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
@@ -174,9 +176,17 @@ export class AppointmentService {
     ]);
     const lastPage = Math.ceil(total / limit);
 
+    // Decrypt patient data in appointments before returning
+    const decryptedAppointments = appointments.map((appointment) => {
+      if (appointment.patient) {
+        appointment.patient = this.decryptPatientData(appointment.patient);
+      }
+      return appointment;
+    });
+
     return {
       message: SuccessResponseMessages.successGeneral,
-      data: appointments,
+      data: decryptedAppointments,
       page,
       total,
       lastPage,
@@ -210,7 +220,7 @@ export class AppointmentService {
     }
     if (appointment.patientId) {
       const patient = await this.patientRepository.findOne({ where: { id: appointment.patientId }, select: { firstName: true, lastName: true, mreNumber: true, email: true } });
-      appointment.patient = patient;
+      appointment.patient = this.decryptPatientData(patient);
     }
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
@@ -221,5 +231,55 @@ export class AppointmentService {
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
     await this.appointmentRepository.delete({ id: appointmentId });
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
+  }
+
+  private decryptField(value: string): string {
+    if (!value || typeof value !== 'string') {
+      return value;
+    }
+    // Check if value looks like encrypted data (iv:authTag:encrypted format)
+    // The encrypted data itself may contain colons, so just check for presence of ':'
+    if (!value.includes(':')) {
+      return value; // Not encrypted, return as is
+    }
+    try {
+      return this.encryptionService.decrypt(value);
+    } catch (error) {
+      // If decryption fails, return the original value
+      return value;
+    }
+  }
+
+  private decryptPatientData(patient: any): any {
+    if (!patient) return patient;
+    const decrypted = { ...patient };
+    
+    const phiFields = [
+      'firstName',
+      'lastName',
+      'email',
+      'mreNumber',
+      'phone',
+      'dateOfBirth',
+      'emergencyContactName',
+      'emergencyContactNumber',
+      'emergencyContactRelationship',
+      'insuranceCompany',
+      'insurancePolicyNumber',
+      'allergies',
+      'otherMedicalHistory',
+    ];
+    
+    phiFields.forEach((field) => {
+      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
+        try {
+          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
+        } catch (error) {
+          // If decryption fails, keep original value
+        }
+      }
+    });
+    
+    return decrypted;
   }
 }

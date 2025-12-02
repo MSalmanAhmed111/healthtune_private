@@ -9,6 +9,7 @@ import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { EncryptionService } from 'src/common/encryption/encryption.service';
 import moment from 'moment';
 
 @Injectable()
@@ -41,6 +42,7 @@ export class SessionService {
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
+    private readonly encryptionService: EncryptionService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
   ) {}
@@ -50,20 +52,42 @@ export class SessionService {
     let { patientId, sex } = reqBody;
     let patientName = null;
 
-    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['userPlan', 'userPlan.usage', 'userPlan.usage.planFeatureProperty', 'userPlan.usage.planFeatureProperty.feature'] });
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId }, 
+      relations: [
+        'userPlan', 
+        'userPlan.usage', 
+        'userPlan.usage.planFeatureProperty', 
+        'userPlan.usage.planFeatureProperty.feature',
+        'organization',
+        'organization.userPlan',
+        'organization.userPlan.usage',
+        'organization.userPlan.usage.planFeatureProperty',
+        'organization.userPlan.usage.planFeatureProperty.feature'
+      ] 
+    });
+    
     let appointment = null;
     if (appointmentId) {
       appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
       if (!appointment) throw new NotFoundException(SessionErrorMessages.appointmentNotFound);
+      
+      // Check if session already exists for this appointment
+      const existingSession = await this.sessionRepository.findOne({ where: { appointmentId } });
+      if (existingSession) throw new BadRequestException('A session already exists for this appointment');
     }
 
-    if (user.userPlan && user.userPlan.usage.length > 0) {
-      const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-      if (usage) {
-        if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
-        usage.usageCount = usage.usageCount - 1;
-        await this.userPlanUsageRepository.save(usage);
+    // Get effective subscription (user plan first, then organization plan)
+    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
+    
+    if (effectiveSubscription) {
+      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
+      if (!usage) {
+        throw new BadRequestException('Session creation is not available in your current plan');
       }
+      if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
+      usage.usageCount = usage.usageCount - 1;
+      await this.userPlanUsageRepository.save(usage);
     }
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
@@ -334,6 +358,20 @@ export class SessionService {
     const [sessions, total] = await qb.getManyAndCount();
     const lastPage = Math.ceil(total / limit);
     for (const session of sessions) {
+      // Try to decrypt patientName, reconstruct from patient if it fails
+      if (session.patient) {
+        session.patient = this.decryptPatientData(session.patient);
+        const decryptedName = this.decryptField(session.patientName);
+        if (decryptedName === session.patientName && session.patientName.includes(':')) {
+          // Decryption failed, reconstruct from patient
+          session.patientName = `${session.patient.firstName} ${session.patient.lastName}`;
+        } else {
+          session.patientName = decryptedName;
+        }
+      } else {
+        // No patient data, try to decrypt patientName as-is
+        session.patientName = this.decryptField(session.patientName);
+      }
       session.patient = undefined;
     }
     return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
@@ -348,6 +386,23 @@ export class SessionService {
     const where = userId !== undefined && !user?.clerkOrganizationId ? { id: sessionId, userId } : { id: sessionId };
     const session = await this.sessionRepository.findOne({ where, relations: ['note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'patient'] });
     if (!session) throw new NotFoundException(SessionErrorMessages.sessionNotExists);
+    
+    // Decrypt patient data if present
+    if (session.patient) {
+      session.patient = this.decryptPatientData(session.patient);
+      // If patientName cannot be decrypted, reconstruct it from patient data
+      const decryptedName = this.decryptField(session.patientName);
+      if (decryptedName === session.patientName && session.patientName.includes(':')) {
+        // Decryption failed (result same as input and still has colons), rebuild from patient
+        session.patientName = `${session.patient.firstName} ${session.patient.lastName}`;
+      } else {
+        session.patientName = decryptedName;
+      }
+    } else {
+      // No patient data, try to decrypt patientName as-is
+      session.patientName = this.decryptField(session.patientName);
+    }
+    
     return { message: SuccessResponseMessages.successGeneral, data: session };
   }
 
@@ -371,5 +426,58 @@ export class SessionService {
       }
     }
     return { message: SuccessResponseMessages.successGeneral, data: session };
+  }
+
+  private decryptField(value: string): string {
+    if (!value || typeof value !== 'string') {
+      return value;
+    }
+    // Check if value looks like encrypted data (iv:authTag:encrypted format)
+    // Split on first 2 colons only, encrypted data itself may contain colons
+    if (!value.includes(':')) {
+      return value; // Not encrypted, return as is
+    }
+    try {
+      const decrypted = this.encryptionService.decrypt(value);
+      console.log(`✓ Decrypted: ${decrypted}`)
+      return decrypted;
+    } catch (error) {
+      // If decryption fails, log and return the original value
+      console.error(`✗ Decryption failed:`, error.message);
+      return value;
+    }
+  }
+
+  private decryptPatientData(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const decrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
+        try {
+          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
+        } catch (error) {
+          // If decryption fails, keep original value
+        }
+      }
+    });
+
+    return decrypted;
   }
 }
