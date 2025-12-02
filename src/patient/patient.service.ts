@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, MoreThanOrEqual, Not, Repository } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, InsuranceTypeEnum, SettingNames, UserRolesEnum, PlanFeatureNameEnum } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, InsuranceTypeEnum, SettingNames, UserRolesEnum, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
 import { CreatePatientDto, GetPatientsDto, UpdatePatientDto } from 'src/dto';
 import { ErrorResponseMessages, PatientErrorMessages, SuccessResponseMessages } from '@messages';
-import { Appointment, FileStorage, Patient, Setting, User, UserPlanUsage } from '@entities';
+import { Appointment, FileStorage, Patient, Setting, User, UserPlanUsage, Session } from '@entities';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
@@ -26,6 +26,8 @@ export class PatientService {
     private readonly fileStorageRepository: Repository<FileStorage>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+    @InjectRepository(Session)
+    private readonly sessionRepository: Repository<Session>,
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
@@ -160,6 +162,9 @@ export class PatientService {
       throw new ForbiddenException('You do not have permission to update this patient');
     }
 
+    // HIPAA: Decrypt patient data first before updating
+    patient = this.decryptPatientData(patient);
+
     patient.firstName = firstName || patient.firstName;
     patient.lastName = lastName || patient.lastName;
     patient.dateOfBirth = dateOfBirth ?? patient.dateOfBirth;
@@ -199,7 +204,7 @@ export class PatientService {
     return { message: SuccessResponseMessages.successGeneral, data: patient };
   }
 
-  async getPatientsByAppointment(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
+async getPatientsByAppointment(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
     // Get user and organization context
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -409,28 +414,32 @@ export class PatientService {
   }
 
   private encryptPhiFields(patient: any): any {
-    const phiFields = [
-      'mreNumber',
-      'firstName',
-      'lastName',
-      'email',
-      'phoneNumber',
-      'medicalHistory',
-      'allergies',
-      'currentMedications',
-      'chronicDiseases',
-      'surgicalHistory',
-      'emergencyContactName',
-      'emergencyContactPhone',
-      'insuranceProvider',
-      'insurancePolicyNumber',
-      'admissionReason',
-    ];
+    const topLevelPhiFields = ['mreNumber', 'firstName', 'lastName', 'email'];
+    const nestedPhiFields = {
+      contactDetails: ['phoneNumber', 'emergencyContactName', 'emergencyContactPhone'],
+      medicalDetails: ['medicalHistory', 'allergies', 'currentMedications', 'chronicDiseases', 'surgicalHistory'],
+      insuranceDetails: ['insuranceProvider', 'insurancePolicyNumber'],
+      admissionDetails: ['admissionReason'],
+    };
 
     const encrypted = { ...patient };
-    phiFields.forEach((field) => {
+
+    // Encrypt top-level fields
+    topLevelPhiFields.forEach((field) => {
       if (encrypted[field] && typeof encrypted[field] === 'string') {
         encrypted[field] = this.encryptionService.encrypt(encrypted[field]);
+      }
+    });
+
+    // Encrypt nested fields
+    Object.entries(nestedPhiFields).forEach(([objectKey, fields]) => {
+      if (encrypted[objectKey] && typeof encrypted[objectKey] === 'object') {
+        encrypted[objectKey] = { ...encrypted[objectKey] };
+        (fields as string[]).forEach((field) => {
+          if (encrypted[objectKey][field] && typeof encrypted[objectKey][field] === 'string') {
+            encrypted[objectKey][field] = this.encryptionService.encrypt(encrypted[objectKey][field]);
+          }
+        });
       }
     });
 
@@ -439,33 +448,49 @@ export class PatientService {
 
 
   private decryptPatientData(patient: any): any {
-    const phiFields = [
-      'mreNumber',
-      'firstName',
-      'lastName',
-      'email',
-      'phoneNumber',
-      'medicalHistory',
-      'allergies',
-      'currentMedications',
-      'chronicDiseases',
-      'surgicalHistory',
-      'emergencyContactName',
-      'emergencyContactPhone',
-      'insuranceProvider',
-      'insurancePolicyNumber',
-      'admissionReason',
-    ];
+    const topLevelPhiFields = ['mreNumber', 'firstName', 'lastName', 'email'];
+    const nestedPhiFields = {
+      contactDetails: ['phoneNumber', 'emergencyContactName', 'emergencyContactPhone'],
+      medicalDetails: ['medicalHistory', 'allergies', 'currentMedications', 'chronicDiseases', 'surgicalHistory'],
+      insuranceDetails: ['insuranceProvider', 'insurancePolicyNumber'],
+      admitionDetails: ['admissionReason'],
+    };
 
     const decrypted = { ...patient };
-    phiFields.forEach((field) => {
-      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
-        try {
-          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
-        } catch (error) {
-          console.warn(`Failed to decrypt field ${field}:`, error.message);
-          // Leave encrypted if decryption fails
-        }
+
+    // Helper function to attempt decryption
+    const tryDecrypt = (value: any): any => {
+      if (!value || typeof value !== 'string') return value;
+      
+      // Check if it looks like an encrypted value (contains colons which indicate encryption format)
+      if (!value.includes(':')) return value;
+      
+      try {
+        const result = this.encryptionService.decrypt(value);
+        return result;
+      } catch (error) {
+        console.warn(`Failed to decrypt value:`, error.message);
+        // Return original value if decryption fails
+        return value;
+      }
+    };
+
+    // Decrypt top-level fields
+    topLevelPhiFields.forEach((field) => {
+      if (decrypted[field]) {
+        decrypted[field] = tryDecrypt(decrypted[field]);
+      }
+    });
+
+    // Decrypt nested fields
+    Object.entries(nestedPhiFields).forEach(([objectKey, fields]) => {
+      if (decrypted[objectKey] && typeof decrypted[objectKey] === 'object') {
+        decrypted[objectKey] = { ...decrypted[objectKey] };
+        (fields as string[]).forEach((field) => {
+          if (decrypted[objectKey][field]) {
+            decrypted[objectKey][field] = tryDecrypt(decrypted[objectKey][field]);
+          }
+        });
       }
     });
 

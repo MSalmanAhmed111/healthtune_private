@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment } from '@entities';
-import { Between, Brackets, Repository } from 'typeorm';
+import { Between, Brackets, Repository, QueryFailedError } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
@@ -111,8 +111,30 @@ export class SessionService {
     } else {
       throw new NotFoundException(SessionErrorMessages.patientIdOrNameRequired);
     }
+
     const session = this.sessionRepository.create({ patientId, patientName, sex, sessionType, noteFormat, language, userId, appointmentId });
-    await this.sessionRepository.save(session);
+    
+    try {
+      await this.sessionRepository.save(session);
+    } catch (error) {
+      // Revert usage decrement if session creation fails
+      if (user.userPlan && user.userPlan.usage.length > 0) {
+        const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
+        if (usage) {
+          usage.usageCount = usage.usageCount + 1;
+          await this.userPlanUsageRepository.save(usage);
+        }
+      }
+      
+      // Handle duplicate key constraint violation
+      if (error instanceof QueryFailedError && error.driverError?.code === '23505') {
+        throw new BadRequestException(SessionErrorMessages.sessionAlreadyExists);
+      }
+      
+      // Re-throw other errors
+      throw error;
+    }
+
     if (appointment) {
       appointment.status = AppointmentStatus.InProgress;
       await this.appointmentRepository.save(appointment);
