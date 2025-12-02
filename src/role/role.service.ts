@@ -58,7 +58,7 @@ export class RoleService {
 
   async createRole(createRoleDto: CreateRoleDto): Promise<ApiMessageData> {
     try {
-      const { key, name, description, permissionIds } = createRoleDto;
+      const { key, name, description, permissionIds = [] } = createRoleDto;
 
       // Check if key already exists for system roles
       const existingRole = await this.roleRepository.findOne({
@@ -68,10 +68,13 @@ export class RoleService {
         throw new BadRequestException(roleErrorMessages.roleKeyAlreadyExists);
       }
 
-      // Get permissions
-      const permissions = await this.permissionRepository.findByIds(permissionIds);
-      if (permissions.length !== permissionIds.length) {
-        throw new BadRequestException(roleErrorMessages.invalidPermissionIds);
+      // Get permissions if provided
+      let permissions = [];
+      if (permissionIds && permissionIds.length > 0) {
+        permissions = await this.permissionRepository.findByIds(permissionIds);
+        if (permissions.length !== permissionIds.length) {
+          throw new BadRequestException(roleErrorMessages.invalidPermissionIds);
+        }
       }
 
       // Create system role
@@ -275,16 +278,19 @@ export class RoleService {
   async createMyOrgRole(req: Request, createOrgRoleDto: CreateOrgRoleDto): Promise<ApiMessageData> {
     try {
       const organizationId = this.getUserOrganizationId(req);
-      const { name, description, permissionIds } = createOrgRoleDto;
+      const { name, description, permissionIds = [] } = createOrgRoleDto;
 
       // Generate unique key for org role: org_{orgId}_{name_slug}_{timestamp}
       const nameSlug = name.toLowerCase().replace(/\s+/g, '_');
       const key = `org_${organizationId}_${nameSlug}_${Date.now()}`;
 
-      // Get permissions
-      const permissions = await this.permissionRepository.findByIds(permissionIds);
-      if (permissions.length !== permissionIds.length) {
-        throw new BadRequestException(roleErrorMessages.invalidPermissionIds);
+      // Get permissions if provided
+      let permissions = [];
+      if (permissionIds && permissionIds.length > 0) {
+        permissions = await this.permissionRepository.findByIds(permissionIds);
+        if (permissions.length !== permissionIds.length) {
+          throw new BadRequestException(roleErrorMessages.invalidPermissionIds);
+        }
       }
 
       // Create organization role

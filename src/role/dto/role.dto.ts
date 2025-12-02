@@ -13,10 +13,10 @@ export class CreateRoleDto {
   @IsString()
   description?: string;
 
+  @IsOptional()
   @IsArray()
   @IsNumber({}, { each: true })
-  @IsNotEmpty()
-  permissionIds: number[];
+  permissionIds?: number[];
 }
 
 export class UpdateRoleDto {
@@ -50,10 +50,10 @@ export class CreateOrgRoleDto {
   @IsString()
   description?: string;
 
+  @IsOptional()
   @IsArray()
   @IsNumber({}, { each: true })
-  @IsNotEmpty()
-  permissionIds: number[];
+  permissionIds?: number[];
 }
 
 export class UpdateOrgRoleDto {
