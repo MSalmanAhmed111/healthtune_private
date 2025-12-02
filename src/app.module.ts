@@ -29,6 +29,7 @@ import { QuickNotessModule } from './quick-notes/quick-notes.module';
 import { CommonServicesModule } from './common/services/common-services.module';
 import { PermissionGuard } from '@guards/permissions.guard';
 import { Role } from '@entities';
+import { EncryptionModule } from './common/encryption/encryption.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { Role } from '@entities';
     TypeOrmModule.forFeature([Role]),
     ScheduleModule.forRoot(),
     CommonServicesModule,
+    EncryptionModule,
     SessionsModule,
     MacrosModule,
     TemplatesModule,
