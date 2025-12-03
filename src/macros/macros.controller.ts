@@ -47,7 +47,7 @@ export class MacrosController {
   @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete a macro by ID')
-  async deleteMacros(@Param('id', ValidateId) macroId: number) {
-    return await this.macrosService.deleteMacros(macroId);
+  async deleteMacros(@Param('id', ValidateId) macroId: number, @Req() req: Request) {
+    return await this.macrosService.deleteMacros(macroId, +req.user.id);
   }
 }

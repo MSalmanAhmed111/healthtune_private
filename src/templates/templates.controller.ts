@@ -47,7 +47,7 @@ export class TemplatesController {
   @Permissions(PermissionEnum.MANAGE_CUSTOMIZATIONS)
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Delete a template by ID')
-  async deleteTemplate(@Param('id', ValidateId) templateId: number) {
-    return await this.templatesService.deleteTemplate(templateId);
+  async deleteTemplate(@Param('id', ValidateId) templateId: number, @Req() req: Request) {
+    return await this.templatesService.deleteTemplate(templateId, +req.user.id);
   }
 }

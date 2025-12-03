@@ -266,12 +266,28 @@ export class AdminService {
   async getOrganizationDetails(organizationId: number): Promise<ApiMessageData> {
     const organization = await this.organizationRepository.findOne({
       where: { id: organizationId },
-      relations: ['userPlan', 'userPlan.plan', 'userPlan.usage']
+      relations: [
+        'userPlan',
+        'userPlan.plan',
+        'userPlan.usage',
+        'userPlan.usage.planFeatureProperty',
+        'userPlan.usage.planFeatureProperty.feature'
+      ]
     });
 
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
+
+    // Format usage data with feature details
+    const usageDetails = organization.userPlan?.usage?.map(u => ({
+      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+      displayName: u.planFeatureProperty?.displayName || 'Unknown',
+      usageCount: u.usageCount ?? 0,
+      isUnlimited: u.planFeatureProperty?.properties?.isUnlimited ?? false,
+      limit: u.planFeatureProperty?.properties?.limit ?? null,
+      limitType: u.planFeatureProperty?.properties?.limitType ?? null,
+    })) || [];
 
     return {
       message: SuccessResponseMessages.successGeneral,
@@ -282,11 +298,18 @@ export class AdminService {
         createdAt: organization.createdAt,
         subscription: organization.userPlan ? {
           id: organization.userPlan.id,
-          plan: organization.userPlan.plan,
+          plan: {
+            id: organization.userPlan.plan?.id,
+            name: organization.userPlan.plan?.name,
+            description: organization.userPlan.plan?.description,
+            price: organization.userPlan.plan?.price,
+            planType: organization.userPlan.plan?.planType,
+          },
           isActive: organization.userPlan.isSubscriptionActive,
           startDate: organization.userPlan.startDate,
           endDate: organization.userPlan.endDate,
-          usageCount: organization.userPlan.usage?.length || 0
+          usageCount: organization.userPlan.usage?.length || 0,
+          usage: usageDetails
         } : null
       }
     };

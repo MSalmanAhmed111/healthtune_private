@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Macro, User, UserPlanUsage } from '@entities';
+import { Macro, User, UserPlanUsage, UserPlan } from '@entities';
 import { Brackets, Not, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum } from '@types';
 import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from 'src/dto';
 import { MacroErrorMessages, SuccessResponseMessages } from '@messages';
+import { PlanUsageService } from 'src/common/services/plan-usage.service';
 
 @Injectable()
 export class MacrosService {
@@ -15,38 +16,26 @@ export class MacrosService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+    private readonly planUsageService: PlanUsageService,
   ) {}
 
   async createMacro(reqBody: CreateMacroDto, userId: number): Promise<ApiMessageData> {
     const { name, content } = reqBody;
 
-    // Get user with subscription info
+    // Get user with organization info
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: [
-        'userPlan', 
-        'userPlan.usage', 
-        'userPlan.usage.planFeatureProperty', 
-        'userPlan.usage.planFeatureProperty.feature',
-        'organization',
-        'organization.userPlan',
-        'organization.userPlan.usage',
-        'organization.userPlan.usage.planFeatureProperty',
-        'organization.userPlan.usage.planFeatureProperty.feature'
-      ],
+      relations: ['organization'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // Check macro replacement usage before creating macro
-    const effectiveSubscription = user.userPlan || user.organization?.userPlan;
-    if (effectiveSubscription) {
-      const usage = effectiveSubscription.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.MACRO_REPLACEMENT);
-      if (!usage) {
-        throw new BadRequestException('Macro replacement is not available in your current plan');
-      }
-      if (usage.usageCount <= 0) throw new BadRequestException('No macro replacement credits left');
-      usage.usageCount = usage.usageCount - 1;
-      await this.userPlanUsageRepository.save(usage);
+    // Track usage consumption (always increment for tracking, even unlimited plans)
+    const orgId = user.organizationId;
+    try {
+      await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.MACRO_REPLACEMENT, 1);
+    } catch (error) {
+      console.error('Failed to track macro usage:', error.message);
+      // Don't block macro creation if usage tracking fails
     }
 
     let macro = await this.macroRepository.findOne({ where: { name } });
@@ -92,9 +81,27 @@ export class MacrosService {
     return { message: SuccessResponseMessages.successGeneral, data: macro };
   }
 
-  async deleteMacros(macroId: number): Promise<ApiMessageData> {
+  async deleteMacros(macroId: number, userId?: number): Promise<ApiMessageData> {
     const macro = await this.macroRepository.findOne({ where: { id: macroId } });
     if (!macro) throw new NotFoundException(MacroErrorMessages.macroNotExists);
+    
+    // Restore usage if user info provided
+    if (userId) {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['organization'],
+      });
+      if (user) {
+        try {
+          // Decrement to reverse the increment (restore the quota)
+          await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.MACRO_REPLACEMENT, -1);
+        } catch (error) {
+          console.error('Failed to restore macro usage:', error.message);
+          // Don't block deletion if usage restoration fails
+        }
+      }
+    }
+    
     await this.macroRepository.delete({ id: macroId });
     return { message: SuccessResponseMessages.successGeneral, data: macro };
   }
