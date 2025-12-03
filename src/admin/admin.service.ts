@@ -147,12 +147,10 @@ export class AdminService {
     // Create usage records BEFORE saving subscription
     subscription.usage = [];
     for (const feature of plan.features) {
-      if (feature?.properties?.isUnlimited === true) continue;
-
       const usage = this.userPlanUsageRepository.create({
         planFeatureProperty: feature,
         planFeaturePropertyId: feature.id,
-        usageCount: feature.properties?.limit ?? null,
+        usageCount: 0, // Start at 0 and increment as features are used
       });
       subscription.usage.push(usage);
     }
@@ -216,7 +214,12 @@ export class AdminService {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: organizationId
       },
-      relations: ['plan', 'usage']
+      relations: [
+        'plan',
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ]
     });
 
     if (!subscription) {
@@ -226,15 +229,26 @@ export class AdminService {
       };
     }
 
+    // Format usage with feature names
+    const formattedUsage = subscription.usage?.map(u => ({
+      id: u.id,
+      planFeaturePropertyId: u.planFeaturePropertyId,
+      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+      usageCount: u.usageCount ?? 0,
+      updatedAt: u.updatedAt,
+      createdAt: u.createdAt,
+      properties: u.planFeatureProperty?.properties || {}
+    })) || [];
+
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
         id: subscription.id,
-        plan: subscription.plan,
-        isActive: subscription.isSubscriptionActive,
+        planName: subscription.plan?.name,
+        isSubscriptionActive: subscription.isSubscriptionActive,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
-        usage: subscription.usage || [],
+        usage: formattedUsage,
         features: subscription.plan?.features || []
       }
     };
@@ -266,12 +280,28 @@ export class AdminService {
   async getOrganizationDetails(organizationId: number): Promise<ApiMessageData> {
     const organization = await this.organizationRepository.findOne({
       where: { id: organizationId },
-      relations: ['userPlan', 'userPlan.plan', 'userPlan.usage']
+      relations: [
+        'userPlan',
+        'userPlan.plan',
+        'userPlan.usage',
+        'userPlan.usage.planFeatureProperty',
+        'userPlan.usage.planFeatureProperty.feature'
+      ]
     });
 
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
+
+    // Format usage data with feature details
+    const usageDetails = organization.userPlan?.usage?.map(u => ({
+      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+      displayName: u.planFeatureProperty?.displayName || 'Unknown',
+      usageCount: u.usageCount ?? 0,
+      isUnlimited: u.planFeatureProperty?.properties?.isUnlimited ?? false,
+      limit: u.planFeatureProperty?.properties?.limit ?? null,
+      limitType: u.planFeatureProperty?.properties?.limitType ?? null,
+    })) || [];
 
     return {
       message: SuccessResponseMessages.successGeneral,
@@ -282,11 +312,18 @@ export class AdminService {
         createdAt: organization.createdAt,
         subscription: organization.userPlan ? {
           id: organization.userPlan.id,
-          plan: organization.userPlan.plan,
+          plan: {
+            id: organization.userPlan.plan?.id,
+            name: organization.userPlan.plan?.name,
+            description: organization.userPlan.plan?.description,
+            price: organization.userPlan.plan?.price,
+            planType: organization.userPlan.plan?.planType,
+          },
           isActive: organization.userPlan.isSubscriptionActive,
           startDate: organization.userPlan.startDate,
           endDate: organization.userPlan.endDate,
-          usageCount: organization.userPlan.usage?.length || 0
+          usageCount: organization.userPlan.usage?.length || 0,
+          usage: usageDetails
         } : null
       }
     };

@@ -20,10 +20,10 @@ export class PlanFeatureProperty {
   description: string;
 
   @ManyToOne(() => PlanFeature, { eager: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'featureId' })
   feature: PlanFeature;
 
   @Column({ type: 'integer' })
-  @JoinColumn({ name: 'featureId' })
   featureId: number;
 
   @Column({ type: 'jsonb' })

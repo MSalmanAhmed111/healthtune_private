@@ -1,6 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment } from '@entities';
+import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment, UserPlan } from '@entities';
 import { Between, Brackets, Repository, QueryFailedError } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
 import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
@@ -9,16 +9,21 @@ import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
 import { RoleBasedAccessService } from 'src/common/services/role-based-access.service';
 import { DataAccessService } from 'src/common/services/data-access.service';
+import { PlanUsageService } from 'src/common/services/plan-usage.service';
 import { EncryptionService } from 'src/common/encryption/encryption.service';
 import moment from 'moment';
 
 @Injectable()
 export class SessionService {
+  private readonly logger = new Logger('SessionService');
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserPlanUsage)
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
+    @InjectRepository(UserPlan)
+    private readonly userPlanRepository: Repository<UserPlan>,
     @InjectRepository(Session)
     private readonly sessionRepository: Repository<Session>,
     @InjectRepository(Note)
@@ -42,6 +47,7 @@ export class SessionService {
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
+    private readonly planUsageService: PlanUsageService,
     private readonly encryptionService: EncryptionService,
     @Inject('StorageProvider')
     private readonly storageProvider: StorageProviderInterface,
@@ -74,11 +80,38 @@ export class SessionService {
     }
 
     if (user.userPlan && user.userPlan.usage.length > 0) {
-      const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-      if (usage) {
-        if (usage.usageCount <= 0) throw new BadRequestException(SessionErrorMessages.noSessionCreationLeft);
-        usage.usageCount = usage.usageCount - 1;
-        await this.userPlanUsageRepository.save(usage);
+      // Check if usage limit is reached before creating session
+      const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+        user.organizationId,
+        PlanFeatureNameEnum.SESSION_CREATION
+      );
+      if (!limitCheck.canUse) {
+        throw new BadRequestException(limitCheck.reason);
+      }
+
+      // Track usage consumption
+      try {
+        await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.SESSION_CREATION, 1);
+      } catch (error) {
+        this.logger.error(`Failed to track usage: ${error.message}`);
+        throw new BadRequestException('Failed to track usage consumption');
+      }
+    } else if (user.organization && user.organization.userPlan && user.organization.userPlan.usage && user.organization.userPlan.usage.length > 0) {
+      // Check if usage limit is reached before creating session (org plan)
+      const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+        user.organizationId,
+        PlanFeatureNameEnum.SESSION_CREATION
+      );
+      if (!limitCheck.canUse) {
+        throw new BadRequestException(limitCheck.reason);
+      }
+
+      // Track usage for organization plan
+      try {
+        await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.SESSION_CREATION, 1);
+      } catch (error) {
+        this.logger.error(`Failed to track org usage: ${error.message}`);
+        throw new BadRequestException('Failed to track usage consumption');
       }
     }
 
@@ -86,7 +119,7 @@ export class SessionService {
     if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
 
     if (patientId) {
-      let whereCondition = { id: patientId };
+      const whereCondition = { id: patientId };
       let patient = null;
       if (user.clerkOrganizationId !== null) {
         patient = await this.patientRepository.findOne({ where: whereCondition });
@@ -99,8 +132,8 @@ export class SessionService {
     } else if (patientFirstName && patientLastName) {
       if (patientRecordSettings.value) {
         //let mreCount = '0';
-        let fetchedItem = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
-        let mreCount = fetchedItem.id;
+        const fetchedItem = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
+        const mreCount = fetchedItem.id;
         //if (patient) mreCount = patient.id.toString();
         const mreNumber = `MRE-${(mreCount + 1).toString().padStart(7, '0')}`;
         let createdPatient = this.patientRepository.create({ firstName: patientFirstName, lastName: patientLastName, mreNumber, gender: sex, doctorId: userId, createdAt: moment().utc().toDate(), updatedAt: moment().utc().toDate() });
@@ -117,15 +150,6 @@ export class SessionService {
     try {
       await this.sessionRepository.save(session);
     } catch (error) {
-      // Revert usage decrement if session creation fails
-      if (user.userPlan && user.userPlan.usage.length > 0) {
-        const usage = user.userPlan.usage.find((u) => u.planFeatureProperty.feature.name == PlanFeatureNameEnum.SESSION_CREATION);
-        if (usage) {
-          usage.usageCount = usage.usageCount + 1;
-          await this.userPlanUsageRepository.save(usage);
-        }
-      }
-      
       // Handle duplicate key constraint violation
       if (error instanceof QueryFailedError && error.driverError?.code === '23505') {
         throw new BadRequestException(SessionErrorMessages.sessionAlreadyExists);
@@ -453,11 +477,9 @@ export class SessionService {
     }
     try {
       const decrypted = this.encryptionService.decrypt(value);
-      console.log(`✓ Decrypted: ${decrypted}`)
       return decrypted;
     } catch (error) {
-      // If decryption fails, log and return the original value
-      console.error(`✗ Decryption failed:`, error.message);
+      // If decryption fails, return the original value
       return value;
     }
   }

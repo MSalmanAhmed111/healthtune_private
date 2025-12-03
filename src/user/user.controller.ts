@@ -40,6 +40,13 @@ export class UserController {
     return await this.userService.getOrganizationDoctors(queryParams, +req.user.id);
   }
 
+  @Get('/subscription')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get current user or organization subscription details')
+  async getSubscription(@Req() req: Request): Promise<ApiMessageData> {
+    return await this.userService.getOrganizationSubscription(+req.user.id);
+  }
+
   @Put('/')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Update current user')
