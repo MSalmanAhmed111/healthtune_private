@@ -147,12 +147,10 @@ export class AdminService {
     // Create usage records BEFORE saving subscription
     subscription.usage = [];
     for (const feature of plan.features) {
-      if (feature?.properties?.isUnlimited === true) continue;
-
       const usage = this.userPlanUsageRepository.create({
         planFeatureProperty: feature,
         planFeaturePropertyId: feature.id,
-        usageCount: feature.properties?.limit ?? null,
+        usageCount: 0, // Start at 0 and increment as features are used
       });
       subscription.usage.push(usage);
     }
@@ -216,7 +214,12 @@ export class AdminService {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: organizationId
       },
-      relations: ['plan', 'usage']
+      relations: [
+        'plan',
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ]
     });
 
     if (!subscription) {
@@ -226,15 +229,26 @@ export class AdminService {
       };
     }
 
+    // Format usage with feature names
+    const formattedUsage = subscription.usage?.map(u => ({
+      id: u.id,
+      planFeaturePropertyId: u.planFeaturePropertyId,
+      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+      usageCount: u.usageCount ?? 0,
+      updatedAt: u.updatedAt,
+      createdAt: u.createdAt,
+      properties: u.planFeatureProperty?.properties || {}
+    })) || [];
+
     return {
       message: SuccessResponseMessages.successGeneral,
       data: {
         id: subscription.id,
-        plan: subscription.plan,
-        isActive: subscription.isSubscriptionActive,
+        planName: subscription.plan?.name,
+        isSubscriptionActive: subscription.isSubscriptionActive,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
-        usage: subscription.usage || [],
+        usage: formattedUsage,
         features: subscription.plan?.features || []
       }
     };

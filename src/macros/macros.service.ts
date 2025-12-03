@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Macro, User, UserPlanUsage, UserPlan } from '@entities';
+import { Macro, User, UserPlanUsage } from '@entities';
 import { Brackets, Not, Repository } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, PlanFeatureNameEnum } from '@types';
 import { CreateMacroDto, PaginationQueryDto, UpdateMacroDto } from 'src/dto';
@@ -9,6 +9,8 @@ import { PlanUsageService } from 'src/common/services/plan-usage.service';
 
 @Injectable()
 export class MacrosService {
+  private readonly logger = new Logger('MacrosService');
+
   constructor(
     @InjectRepository(Macro)
     private readonly macroRepository: Repository<Macro>,
@@ -34,7 +36,7 @@ export class MacrosService {
     try {
       await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.MACRO_REPLACEMENT, 1);
     } catch (error) {
-      console.error('Failed to track macro usage:', error.message);
+      this.logger.error(`Failed to track macro usage for org ${orgId}: ${error.message}`);
       // Don't block macro creation if usage tracking fails
     }
 
@@ -96,7 +98,6 @@ export class MacrosService {
           // Decrement to reverse the increment (restore the quota)
           await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.MACRO_REPLACEMENT, -1);
         } catch (error) {
-          console.error('Failed to restore macro usage:', error.message);
           // Don't block deletion if usage restoration fails
         }
       }

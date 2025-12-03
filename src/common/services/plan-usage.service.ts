@@ -1,27 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserPlan, UserPlanUsage } from '@entities';
 import { PlanFeatureNameEnum } from '@types';
 import { SubscriberType } from 'src/user/entity/user-plan.entity';
 
-/**
- * PlanUsageService
- * 
- * Centralized service for tracking plan feature usage.
- * 
- * Strategy: Always INCREMENT usage count when features are consumed.
- * This provides reliable tracking for all plan types (limited or unlimited).
- * Back-office manually calculates billing based on usage reports.
- * 
- * Usage flow:
- * - Create session/template/macro/form -> trackUsage(+1)
- * - Delete session/template/macro/form -> trackUsage(-1) [restores usage]
- * 
- * All organizations (limited or unlimited plans) are tracked uniformly.
- */
 @Injectable()
 export class PlanUsageService {
+  private readonly logger = new Logger('PlanUsageService');
+
   constructor(
     @InjectRepository(UserPlan)
     private readonly userPlanRepository: Repository<UserPlan>,
@@ -34,14 +21,18 @@ export class PlanUsageService {
     featureName: PlanFeatureNameEnum,
     amount: number = 1,
   ): Promise<number> {
-    // Get org's active plan
+  
     const userPlan = await this.userPlanRepository.findOne({
       where: {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: orgId,
         isSubscriptionActive: true,
       },
-      relations: ['usage', 'usage.planFeatureProperty', 'usage.planFeatureProperty.feature'],
+      relations: [
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ],
     });
 
     if (!userPlan) {
@@ -59,15 +50,26 @@ export class PlanUsageService {
       );
     }
 
-    // Update usage count (increment or decrement)
-    // Initialize to 0 if null (handles edge cases)
     const currentCount = usageRecord.usageCount ?? 0;
-    usageRecord.usageCount = Math.max(0, currentCount + amount); // Prevent negative counts
+    const newCount = Math.max(0, currentCount + amount); // Prevent negative counts
 
-    // Save updated usage
-    await this.userPlanUsageRepository.save(usageRecord);
+    try {
+      const result = await this.userPlanUsageRepository
+        .createQueryBuilder()
+        .update(UserPlanUsage)
+        .set({ usageCount: newCount })
+        .where('id = :id', { id: usageRecord.id })
+        .execute();
 
-    return usageRecord.usageCount;
+      if (!result.affected || result.affected === 0) {
+        this.logger.error(`Failed to update usage record for org ${orgId}, feature ${featureName}`);
+      }
+    } catch (dbErr) {
+      this.logger.error(`Database update failed: ${dbErr.message}`);
+      throw dbErr;
+    }
+
+    return newCount;
   }
 
   async getUsage(orgId: number, featureName: PlanFeatureNameEnum): Promise<number | null> {
@@ -77,7 +79,11 @@ export class PlanUsageService {
         subscriberId: orgId,
         isSubscriptionActive: true,
       },
-      relations: ['usage', 'usage.planFeatureProperty', 'usage.planFeatureProperty.feature'],
+      relations: [
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ],
     });
 
     if (!userPlan) {
@@ -105,7 +111,11 @@ export class PlanUsageService {
         subscriberId: orgId,
         isSubscriptionActive: true,
       },
-      relations: ['usage', 'usage.planFeatureProperty', 'usage.planFeatureProperty.feature'],
+      relations: [
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ],
     });
 
     if (!userPlan) {
@@ -117,5 +127,50 @@ export class PlanUsageService {
       usageCount: u.usageCount ?? 0,
       isUnlimited: u.planFeatureProperty?.properties?.isUnlimited ?? false,
     })) || [];
+  }
+
+  async checkUsageLimitBeforeIncrement(
+    orgId: number,
+    featureName: PlanFeatureNameEnum,
+  ): Promise<{ canUse: boolean; reason?: string }> {
+    const userPlan = await this.userPlanRepository.findOne({
+      where: {
+        subscriberType: SubscriberType.ORGANIZATION,
+        subscriberId: orgId,
+        isSubscriptionActive: true,
+      },
+      relations: [
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ],
+    });
+
+    if (!userPlan) {
+      return { canUse: false, reason: `No active plan found for organization ${orgId}` };
+    }
+
+    const usageRecord = userPlan.usage?.find(
+      u => u.planFeatureProperty?.feature?.name === featureName,
+    );
+
+    if (!usageRecord) {
+      return { canUse: false, reason: `Feature ${featureName} not found in plan` };
+    }
+
+    // Check if feature is unlimited
+    if (usageRecord.planFeatureProperty?.properties?.isUnlimited) {
+      return { canUse: true };
+    }
+
+    // Check if usage limit reached
+    const limit = usageRecord.planFeatureProperty?.properties?.limit;
+    const currentUsage = usageRecord.usageCount ?? 0;
+
+    if (limit !== undefined && currentUsage >= limit) {
+      return { canUse: false, reason: `Usage limit reached for feature ${featureName}. Limit: ${limit}, Current: ${currentUsage}` };
+    }
+
+    return { canUse: true };
   }
 }
