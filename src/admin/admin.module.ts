@@ -4,7 +4,8 @@ import { AdminController } from './admin.controller';
 import { UserModule } from 'src/user/user.module';
 import { AppointmentModule } from 'src/appointment/appointment.module';
 import { SessionsModule } from 'src/sessions/sessions.module';
-import { User, Appointment, Session, Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory } from '@entities';
+import { PlanModule } from 'src/plan/plan.module';
+import { User, Appointment, Session, Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty } from '@entities';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { AccessTokenStrategy } from '@strategies/access-token.strategy';
@@ -13,8 +14,9 @@ import { AccessTokenStrategy } from '@strategies/access-token.strategy';
   imports: [
     UserModule, 
     AppointmentModule, 
-    SessionsModule, 
-    TypeOrmModule.forFeature([User, Session, Admin, Appointment, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory])
+    SessionsModule,
+    PlanModule,
+    TypeOrmModule.forFeature([User, Session, Admin, Appointment, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty])
   ], 
   controllers: [AdminController],
   providers: [AdminService, JwtService, AccessTokenStrategy],

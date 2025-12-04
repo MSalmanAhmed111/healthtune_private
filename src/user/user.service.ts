@@ -290,6 +290,129 @@ export class UserService {
     };
   }
 
+  async getOrganizationSubscription(userId: number): Promise<ApiMessageData> {
+    // Get user with organization info
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization']
+    });
+
+    if (!user) {
+      throw new NotFoundException(userErrorMessages.userNotExists);
+    }
+
+    // If user belongs to an organization, return organization subscription
+    if (user.organizationId) {
+      const organization = await this.organizationRepository.findOne({
+        where: { id: user.organizationId }
+      });
+
+      if (!organization) {
+        throw new NotFoundException('Organization not found');
+      }
+
+      const subscription = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: user.organizationId
+        },
+        relations: [
+          'plan',
+          'usage',
+          'usage.planFeatureProperty',
+          'usage.planFeatureProperty.feature'
+        ]
+      });
+
+      if (!subscription) {
+        return {
+          message: 'No organization subscription found',
+          data: null
+        };
+      }
+
+      // Format usage with feature names
+      const formattedUsage = subscription.usage?.map(u => ({
+        id: u.id,
+        planFeaturePropertyId: u.planFeaturePropertyId,
+        featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+        usageCount: u.usageCount ?? 0,
+        updatedAt: u.updatedAt,
+        createdAt: u.createdAt,
+        properties: u.planFeatureProperty?.properties || {}
+      })) || [];
+
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: {
+          type: 'organization',
+          organization: {
+            id: organization.id,
+            name: organization.name,
+            clerkOrganizationId: organization.clerkOrganizationId
+          },
+          subscription: {
+            id: subscription.id,
+            planName: subscription.plan?.name,
+            isSubscriptionActive: subscription.isSubscriptionActive,
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            usage: formattedUsage,
+            features: subscription.plan?.features || []
+          }
+        }
+      };
+    }
+
+    // If user doesn't belong to organization, return individual subscription
+    const subscription = await this.userPlanRepository.findOne({
+      where: {
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId
+      },
+      relations: [
+        'plan',
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ]
+    });
+
+    if (!subscription) {
+      return {
+        message: 'No individual subscription found',
+        data: null
+      };
+    }
+
+    // Format usage with feature names
+    const formattedUsage = subscription.usage?.map(u => ({
+      id: u.id,
+      planFeaturePropertyId: u.planFeaturePropertyId,
+      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+      usageCount: u.usageCount ?? 0,
+      updatedAt: u.updatedAt,
+      createdAt: u.createdAt,
+      properties: u.planFeatureProperty?.properties || {}
+    })) || [];
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        type: 'individual',
+        subscription: {
+          id: subscription.id,
+          planName: subscription.plan?.name,
+          isSubscriptionActive: subscription.isSubscriptionActive,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          usage: formattedUsage,
+          features: subscription.plan?.features || []
+        }
+      }
+    };
+  }
+
   async getUserSubscriptionHistory(userId: number, paginationDto: PaginationDto): Promise<ApiMessageDataPagination> {
     const { page = 1, limit = 10 } = paginationDto;
     const skip = (page - 1) * limit;
