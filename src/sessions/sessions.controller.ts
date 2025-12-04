@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, Req, UploadedFile } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
-import { ApiMessageData, PermissionEnum } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
+import { ApiMessageData, ApiMessageDataPagination, PermissionEnum } from '@types';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
@@ -93,5 +93,29 @@ export class SessionController {
   @SwaggerApiResponse('Get a user session')
   async getUserSession(@Param('id', ValidateId) sessionId: number, @Req() req: Request) {
     return await this.sessionService.getSession(sessionId, +req.user.id);
+  }
+
+  @Post('/:id/feedback')
+  @Permissions(PermissionEnum.CREATE_SESSION_FEEDBACK)
+  @HttpCode(HttpStatus.CREATED)
+  @SwaggerApiResponse('Submit feedback for a session')
+  async createSessionFeedback(
+    @Param('id', ValidateId) sessionId: number, 
+    @Body() reqBody: CreateSessionFeedbackDto,
+    @Req() req: Request
+  ): Promise<ApiMessageData> {
+    return await this.sessionService.createSessionFeedback(sessionId, reqBody, +req.user.id);
+  }
+
+  @Get('/:id/feedback')
+  @Permissions(PermissionEnum.VIEW_SESSION_FEEDBACK)
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all feedbacks for a session')
+  async getSessionFeedbacks(
+    @Param('id', ValidateId) sessionId: number,
+    @Query() queryParams: PaginationQueryDto,
+    @Req() req: Request
+  ): Promise<ApiMessageDataPagination> {
+    return await this.sessionService.getSessionFeedbacks(sessionId, +req.user.id, queryParams);
   }
 }

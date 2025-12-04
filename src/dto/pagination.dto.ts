@@ -10,14 +10,14 @@ export class PaginationDto {
   @IsInt()
   @Min(1)
   @ApiProperty({ description: 'Page number' })
-  page?: number = 1;
+  page?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @ApiProperty({ description: 'Limit of data per page' })
-  limit?: number = 10000;
+  limit?: number;
 }
 
 export class PaginationQueryDto extends PaginationDto {

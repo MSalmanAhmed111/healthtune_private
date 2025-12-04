@@ -71,6 +71,8 @@ export enum PermissionEnum {
   SESSION_HISTORY = 'org:session:session_history',
   VIEW_ALL_SESSIONS = 'org:session:view_all_sessions',
   VIEW_SESSION = 'org:session:view_session',
+  CREATE_SESSION_FEEDBACK = 'org:session:create_feedback',
+  VIEW_SESSION_FEEDBACK = 'org:session:view_feedback',
 
   // Global
   VIEW_ALL_SESSION_SESSIONS = 'org:view_all_session_sessions',
