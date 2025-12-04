@@ -1,17 +1,19 @@
-import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory } from '@entities';
+import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty } from '@entities';
 import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { adminErrorMessages, SuccessResponseMessages } from '@messages';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ApiMessageData, SubscriptionStatusEnum, PaymentMethodEnum, PlanTypeEnum } from '@types';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { AdminLoginDto } from '@dtos';
+import { AdminLoginDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto } from '@dtos';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(Admin)
     private readonly adminRepository: Repository<Admin>,
@@ -25,6 +27,10 @@ export class AdminService {
     private readonly userPlanUsageRepository: Repository<UserPlanUsage>,
     @InjectRepository(SubscriptionHistory)
     private readonly subscriptionHistoryRepository: Repository<SubscriptionHistory>,
+    @InjectRepository(PlanFeature)
+    private readonly featureRepository: Repository<PlanFeature>,
+    @InjectRepository(PlanFeatureProperty)
+    private readonly featurePropertyRepository: Repository<PlanFeatureProperty>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -390,5 +396,204 @@ export class AdminService {
       default:
         return null;
     }
+  }
+
+  // Plan CRUD Operations
+  async createPlan(reqBody: CreatePlanDto): Promise<ApiMessageData> {
+    this.logger.log(`Creating new plan: ${reqBody.name}`);
+    const { name, description, price, planType, features } = reqBody;
+
+    // Check if plan already exists
+    const existingPlan = await this.planRepository.findOne({ where: { name } });
+    if (existingPlan) {
+      throw new BadRequestException(`Plan with name "${name}" already exists`);
+    }
+
+    // Create plan
+    let plan = this.planRepository.create({
+      name,
+      description,
+      price,
+      planType,
+      features: []
+    });
+    plan = await this.planRepository.save(plan);
+    this.logger.log(`Plan created with ID: ${plan.id}`);
+
+    // Add features to plan
+    if (features && features.length > 0) {
+      for (const featureProp of features) {
+        const feature = await this.featureRepository.findOne({
+          where: { id: featureProp.featureId }
+        });
+        if (!feature) {
+          throw new BadRequestException(`Feature with ID ${featureProp.featureId} not found`);
+        }
+
+        let planFeatureProperty = this.featurePropertyRepository.create({
+          plan,
+          feature,
+          displayName: featureProp.displayName,
+          description: featureProp.description,
+          featureId: featureProp.featureId,
+          properties: featureProp.properties
+        });
+        planFeatureProperty = await this.featurePropertyRepository.save(planFeatureProperty);
+        plan.features.push(planFeatureProperty);
+      }
+      this.logger.log(`Added ${features.length} features to plan ${plan.id}`);
+    }
+
+    return {
+      message: 'Plan created successfully',
+      data: plan
+    };
+  }
+
+  async getPlan(planId: number): Promise<ApiMessageData> {
+    const plan = await this.planRepository.findOne({
+      where: { id: planId },
+      relations: ['features', 'features.feature']
+    });
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: plan
+    };
+  }
+
+  async getPlans(queryParams: PaginationQueryDto): Promise<any> {
+    const { page = 1, limit = 10, sort = 'DESC' } = queryParams;
+
+    const [plans, total] = await this.planRepository.findAndCount({
+      relations: ['features', 'features.feature'],
+      take: limit,
+      skip: (page - 1) * limit,
+      order: { id: sort }
+    });
+
+    const lastPage = Math.ceil(total / limit);
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: plans,
+      page,
+      lastPage,
+      total
+    };
+  }
+
+  async updatePlan(planId: number, reqBody: UpdatePlanDto): Promise<ApiMessageData> {
+    this.logger.log(`Updating plan: ${planId}`);
+    const { name, description, price, planType, features } = reqBody;
+
+    let plan = await this.planRepository.findOne({
+      where: { id: planId },
+      relations: ['features', 'features.feature']
+    });
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+
+    // Check if new name is unique (if changing name)
+    if (name && name !== plan.name) {
+      const existingPlan = await this.planRepository.findOne({
+        where: { name, id: Not(planId) }
+      });
+      if (existingPlan) {
+        throw new BadRequestException(`Plan with name "${name}" already exists`);
+      }
+      plan.name = name;
+    }
+
+    if (description !== undefined) plan.description = description;
+    if (price !== undefined) plan.price = price;
+    if (planType !== undefined) plan.planType = planType;
+
+    plan = await this.planRepository.save(plan);
+    this.logger.log(`Plan ${planId} basic info updated`);
+
+    // Update features if provided
+    if (features && features.length > 0) {
+      // Remove old features
+      await this.featurePropertyRepository.delete({ plan: { id: planId } });
+      plan.features = [];
+
+      // Add new features
+      for (const featureProp of features) {
+        const feature = await this.featureRepository.findOne({
+          where: { id: featureProp.featureId }
+        });
+        if (!feature) {
+          throw new BadRequestException(`Feature with ID ${featureProp.featureId} not found`);
+        }
+
+        let planFeatureProperty = this.featurePropertyRepository.create({
+          plan,
+          feature,
+          displayName: featureProp.displayName,
+          description: featureProp.description,
+          featureId: featureProp.featureId,
+          properties: featureProp.properties
+        });
+        planFeatureProperty = await this.featurePropertyRepository.save(planFeatureProperty);
+        plan.features.push(planFeatureProperty);
+      }
+      this.logger.log(`Updated ${features.length} features for plan ${planId}`);
+    }
+
+    return {
+      message: 'Plan updated successfully',
+      data: plan
+    };
+  }
+
+  async deletePlan(planId: number): Promise<ApiMessageData> {
+    this.logger.log(`Deleting plan: ${planId}`);
+    const plan = await this.planRepository.findOne({ where: { id: planId } });
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found`);
+    }
+
+    // Check if plan is in use by any organization
+    const activePlans = await this.userPlanRepository.count({
+      where: {
+        planId: planId,
+        isSubscriptionActive: true
+      }
+    });
+
+    if (activePlans > 0) {
+      throw new BadRequestException(
+        `Cannot delete plan "${plan.name}" as it is currently assigned to ${activePlans} active subscription(s). Please cancel these subscriptions first.`
+      );
+    }
+
+    // Delete all feature properties for this plan
+    await this.featurePropertyRepository.delete({ plan: { id: planId } });
+
+    // Delete the plan
+    await this.planRepository.delete(planId);
+    this.logger.log(`Plan ${planId} deleted successfully`);
+
+    return {
+      message: 'Plan deleted successfully',
+      data: { planId, name: plan.name }
+    };
+  }
+
+  // Feature Management
+  async getFeatures(): Promise<ApiMessageData> {
+    this.logger.log('Getting all available features');
+    const features = await this.featureRepository.find({
+      order: { module: 'ASC', name: 'ASC' }
+    });
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: features
+    };
   }
 }
