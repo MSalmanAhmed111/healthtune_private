@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SwaggerApiResponse } from '@decorators';
-import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto } from '@dtos';
+import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { UserService } from 'src/user/user.service';
 import { ApiTags } from '@nestjs/swagger';
@@ -199,5 +199,64 @@ export class AdminController {
     @Param('organizationId', ValidateId) organizationId: number
   ): Promise<ApiMessageData> {
     return await this.adminService.cancelOrganizationSubscription(organizationId);
+  }
+
+  //  ==================================================================================================================================================================
+  // ?                                                              PLAN CRUD APIS
+  //  ==================================================================================================================================================================
+
+  @Post('/plans')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.CREATED)
+  @SwaggerApiResponse('Create a new plan')
+  async createPlan(@Body() reqBody: CreatePlanDto): Promise<ApiMessageData> {
+    return await this.adminService.createPlan(reqBody);
+  }
+
+  @Get('/plans')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all plans with pagination')
+  async getPlans(@Query() queryParams: PaginationQueryDto): Promise<ApiMessageData> {
+    return await this.adminService.getPlans(queryParams);
+  }
+
+  @Get('/plans/:planId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get a plan by ID')
+  async getPlan(@Param('planId', ValidateId) planId: number): Promise<ApiMessageData> {
+    return await this.adminService.getPlan(planId);
+  }
+
+  @Put('/plans/:planId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Update a plan')
+  async updatePlan(
+    @Param('planId', ValidateId) planId: number,
+    @Body() reqBody: UpdatePlanDto
+  ): Promise<ApiMessageData> {
+    return await this.adminService.updatePlan(planId, reqBody);
+  }
+
+  @Delete('/plans/:planId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Delete a plan')
+  async deletePlan(@Param('planId', ValidateId) planId: number): Promise<ApiMessageData> {
+    return await this.adminService.deletePlan(planId);
+  }
+
+  //  ==================================================================================================================================================================
+  // ?                                                              FEATURE APIS
+  //  ==================================================================================================================================================================
+
+  @Get('/features')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all available features')
+  async getFeatures(): Promise<ApiMessageData> {
+    return await this.adminService.getFeatures();
   }
 }
