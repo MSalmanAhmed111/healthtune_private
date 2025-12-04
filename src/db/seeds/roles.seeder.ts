@@ -60,6 +60,16 @@ export default class RolesSeeder implements Seeder {
       name: 'View Session',
       description: 'Ability to view individual sessions',
     },
+    {
+      key: PermissionEnum.CREATE_SESSION_FEEDBACK,
+      name: 'Create Session Feedback',
+      description: 'Ability to submit feedback for sessions',
+    },
+    {
+      key: PermissionEnum.VIEW_SESSION_FEEDBACK,
+      name: 'View Session Feedback',
+      description: 'Ability to view feedback for sessions',
+    },
     // Management permissions
     {
       key: PermissionEnum.VIEW_ALL_SESSION_SESSIONS,
@@ -90,6 +100,8 @@ export default class RolesSeeder implements Seeder {
         PermissionEnum.VIEW_ALL_SESSIONS,
         PermissionEnum.VIEW_SESSION,
         PermissionEnum.SESSION_HISTORY,
+        PermissionEnum.CREATE_SESSION_FEEDBACK,
+        PermissionEnum.VIEW_SESSION_FEEDBACK,
         PermissionEnum.VIEW_ALL_SESSION_SESSIONS,
         PermissionEnum.MANAGE_CUSTOMIZATIONS,
       ],
@@ -108,6 +120,8 @@ export default class RolesSeeder implements Seeder {
         PermissionEnum.VIEW_ALL_SESSIONS,
         PermissionEnum.VIEW_SESSION,
         PermissionEnum.SESSION_HISTORY,
+        PermissionEnum.CREATE_SESSION_FEEDBACK,
+        PermissionEnum.VIEW_SESSION_FEEDBACK,
         PermissionEnum.MANAGE_CUSTOMIZATIONS,
       ],
     },
@@ -115,7 +129,7 @@ export default class RolesSeeder implements Seeder {
       key: 'org:doctor',
       name: UserRolesEnum.DOCTOR,
       description: "Doctor with limited access to own patients and today's appointments",
-      permissions: [PermissionEnum.VIEW_PATIENT, PermissionEnum.VIEW_APPOINTMENT, PermissionEnum.CREATE_PATIENT_SESSION, PermissionEnum.VIEW_SESSION],
+      permissions: [PermissionEnum.VIEW_PATIENT, PermissionEnum.VIEW_APPOINTMENT, PermissionEnum.CREATE_PATIENT_SESSION, PermissionEnum.VIEW_SESSION, PermissionEnum.CREATE_SESSION_FEEDBACK, PermissionEnum.VIEW_SESSION_FEEDBACK],
     },
     // You can easily add more roles here
     // {

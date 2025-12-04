@@ -2,8 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment, UserPlan } from '@entities';
 import { Between, Brackets, Repository, QueryFailedError } from 'typeorm';
-import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto } from 'src/dto';
+import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum, SortEnum } from '@types';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
@@ -11,6 +11,7 @@ import { RoleBasedAccessService } from 'src/common/services/role-based-access.se
 import { DataAccessService } from 'src/common/services/data-access.service';
 import { PlanUsageService } from 'src/common/services/plan-usage.service';
 import { EncryptionService } from 'src/common/encryption/encryption.service';
+import { SessionFeedback } from './entity/session-feedback.entity';
 import moment from 'moment';
 
 @Injectable()
@@ -44,6 +45,8 @@ export class SessionService {
     private readonly appointmentRepository: Repository<Appointment>,
     @InjectRepository(FileStorage)
     private readonly fileStorageRepository: Repository<FileStorage>,
+    @InjectRepository(SessionFeedback)
+    private readonly sessionFeedbackRepository: Repository<SessionFeedback>,
     private readonly fileStorageService: FileStorageService,
     private readonly roleBasedAccessService: RoleBasedAccessService,
     private readonly dataAccessService: DataAccessService,
@@ -515,5 +518,92 @@ export class SessionService {
     });
 
     return decrypted;
+  }
+
+  async createSessionFeedback(sessionId: number, reqBody: CreateSessionFeedbackDto, userId: number): Promise<ApiMessageData> {
+    // Verify session exists and user has access
+    const session = await this.sessionRepository.findOne({ 
+      where: { id: sessionId },
+      relations: ['user']
+    });
+
+    if (!session) {
+      throw new NotFoundException(SessionErrorMessages.sessionNotFound);
+    }
+
+    // Check if user has access to this session
+    if (session.userId !== userId) {
+      throw new ForbiddenException(SessionErrorMessages.noAccessToSession);
+    }
+
+    // Create feedback
+    const feedback = this.sessionFeedbackRepository.create({
+      feedback: reqBody.feedback,
+      sessionId: sessionId,
+      userId: userId
+    });
+
+    await this.sessionFeedbackRepository.save(feedback);
+
+    return {
+      message: SuccessResponseMessages.feedbackSubmitted,
+      data: {
+        id: feedback.id,
+        feedback: feedback.feedback,
+        sessionId: feedback.sessionId,
+        createdAt: feedback.createdAt
+      }
+    };
+  }
+
+  async getSessionFeedbacks(sessionId: number, userId: number, queryParams: PaginationQueryDto): Promise<ApiMessageDataPagination> {
+    // Verify session exists and user has access
+    const session = await this.sessionRepository.findOne({ 
+      where: { id: sessionId },
+      relations: ['user']
+    });
+
+    if (!session) {
+      throw new NotFoundException(SessionErrorMessages.sessionNotFound);
+    }
+
+    // Check if user has access to this session
+    if (session.userId !== userId) {
+      throw new ForbiddenException(SessionErrorMessages.noAccessToSession);
+    }
+
+    // Get all feedbacks for this session with pagination
+    const page = Number(queryParams.page) || 1;
+    const limit = Number(queryParams.limit) || 10;
+    const sortOrder = queryParams.sort || SortEnum.DESC;
+
+    
+
+
+    const qb = this.sessionFeedbackRepository
+      .createQueryBuilder('feedback')
+      .leftJoinAndSelect('feedback.user', 'user')
+      .where('feedback.sessionId = :sessionId', { sessionId })
+      .orderBy('feedback.createdAt', sortOrder)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [feedbacks, total] = await qb.getManyAndCount();
+    const lastPage = Math.ceil(total / limit);
+
+    return {
+      message: SuccessResponseMessages.dataFetchedSuccessfully,
+      data: feedbacks.map(feedback => ({
+        id: feedback.id,
+        feedback: feedback.feedback,
+        sessionId: feedback.sessionId,
+        userId: feedback.userId,
+        createdAt: feedback.createdAt,
+        updatedAt: feedback.updatedAt
+      })),
+      page,
+      total,
+      lastPage
+    };
   }
 }
