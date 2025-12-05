@@ -384,6 +384,10 @@ export class ClerkWebhookService {
     console.log(`✅ Organization created with ID: ${organization.id}`);
 
     try {
+      // Create default plan for organization
+      await this.createDefaultOrganizationPlan(organization);
+      console.log(`✅ Default plan assigned to organization`);
+
       const defaultRolesCreated = await this.createDefaultOrganizationRoles(organization);
       console.log(`✅ Default roles created: ${defaultRolesCreated}`);
 
@@ -916,6 +920,78 @@ export class ClerkWebhookService {
 
     console.log(`🔐 Mapped permissions for ${roleName || role}:`, permissions);
     return permissions;
+  }
+
+  /**
+   * Create default plan for organization when it's created
+   */
+  private async createDefaultOrganizationPlan(organization: Organization): Promise<void> {
+    try {
+      console.log(`📋 Creating default plan for organization: ${organization.name}`);
+
+      // Find basic plan template
+      const basicPlan = await this.planRepository.findOne({
+        where: { name: SeedPlanNamesEnum.BASIC_PLAN },
+        relations: ['features'],
+      });
+
+      if (!basicPlan) {
+        console.warn(`⚠️ Basic plan not found in database. Run seeder first: npm run seed:dev`);
+        return;
+      }
+
+      // Check if organization already has a plan
+      const existingPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: organization.id,
+        },
+      });
+
+      if (existingPlan) {
+        console.log(`📋 Organization already has a plan assigned`);
+        return;
+      }
+
+      // Create organization plan with empty Stripe customer (to be set later)
+      const organizationPlan = this.userPlanRepository.create({
+        subscriberType: SubscriberType.ORGANIZATION,
+        subscriberId: organization.id,
+        plan: basicPlan,
+        startDate: new Date(),
+        endDate: basicPlan.planType === PlanTypeEnum.MONTHLY
+          ? new Date(new Date().setMonth(new Date().getMonth() + 1))
+          : basicPlan.planType === PlanTypeEnum.YEARLY
+          ? new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+          : null,
+        resetDate: basicPlan.planType === PlanTypeEnum.MONTHLY
+          ? new Date(new Date().setMonth(new Date().getMonth() + 1))
+          : basicPlan.planType === PlanTypeEnum.YEARLY
+          ? new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+          : null,
+        isSubscriptionActive: true,
+        usage: [],
+      });
+
+      // Initialize usage tracking for all plan features
+      for (const feature of basicPlan.features) {
+        if (feature?.properties?.isUnlimited === null) continue;
+
+        const newUsage = this.userPlanUsageRepository.create({
+          planFeatureProperty: feature,
+          planFeaturePropertyId: feature.id,
+          usageCount: feature.properties.limit || null,
+        });
+
+        organizationPlan.usage.push(newUsage);
+      }
+
+      await this.userPlanRepository.save(organizationPlan);
+      console.log(`✅ Default organization plan created with ${basicPlan.features.length} features`);
+    } catch (error) {
+      console.error(`❌ Error creating default organization plan:`, error.message);
+      throw error;
+    }
   }
 
   private async createDefaultOrganizationRoles(organization: Organization): Promise<boolean> {
