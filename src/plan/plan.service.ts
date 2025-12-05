@@ -137,7 +137,7 @@ export class PlanService {
   }
 
   async getPlans(reqQuery: PaginationQueryDto): Promise<ApiMessageDataPagination> {
-    const { page, limit, sort = 'DESC' } = reqQuery;
+    const { page = 1, limit = 10, sort = 'DESC' } = reqQuery;
 
     const [plans, total] = await this.planRepository.findAndCount({
       relations: ['features', 'features.feature'],
