@@ -326,7 +326,14 @@ export class ClerkWebhookService {
     });
 
     if (organization) {
-      console.log(`⚠️ Organization already exists, ensuring roles are created`);
+      console.log(`⚠️ Organization already exists, ensuring setup is complete`);
+      
+      try {
+        await this.createDefaultOrganizationPlan(organization);
+      } catch (planError) {
+        console.warn(`⚠️ Could not ensure default plan: ${planError.message}`);
+      }
+      
       // Still need to create default roles if they don't exist yet
       if (!organization.roles || organization.roles.length === 0) {
         console.log(`📋 Organization has no roles yet, creating defaults...`);
@@ -345,7 +352,7 @@ export class ClerkWebhookService {
           }
 
           return {
-            message: 'Organization roles created successfully',
+            message: 'Organization roles and plan created successfully',
             data: {
               organization,
               adminAssigned: !!created_by,
@@ -459,6 +466,12 @@ export class ClerkWebhookService {
 
     organization = await this.organizationRepository.save(organization);
     console.log(`✅ Organization updated`);
+
+    try {
+      await this.createDefaultOrganizationPlan(organization);
+    } catch (planError) {
+      console.warn(`⚠️ Could not ensure default plan during update: ${planError.message}`);
+    }
 
     if (!organization.roles || organization.roles.length === 0) {
       console.log(`📋 Organization has no roles yet, creating defaults...`);
