@@ -31,13 +31,25 @@ export class MacrosService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // Track usage consumption (always increment for tracking, even unlimited plans)
+    // Get org ID for usage tracking
     const orgId = user.organizationId;
+
+    const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+      orgId,
+      PlanFeatureNameEnum.MACRO_REPLACEMENT,
+    );
+    if (!featureCheck.canUse) {
+      throw new BadRequestException(
+        `Feature not available in your plan. ${featureCheck.reason || 'Upgrade your plan to use this feature.'}`
+      );
+    }
+
+    // Track usage consumption (increment for tracking after validation passes)
     try {
       await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.MACRO_REPLACEMENT, 1);
     } catch (error) {
       this.logger.error(`Failed to track macro usage for org ${orgId}: ${error.message}`);
-      // Don't block macro creation if usage tracking fails
+      throw new BadRequestException('Failed to process macro creation. Please try again.');
     }
 
     let macro = await this.macroRepository.findOne({ where: { name } });
