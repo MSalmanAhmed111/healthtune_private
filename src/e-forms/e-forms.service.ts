@@ -107,12 +107,22 @@ export class EDocumentService {
     // Get org ID for usage tracking
     const orgId = user.organizationId;
 
-    // Track document generation usage
+   const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+      orgId,
+      PlanFeatureNameEnum.DOCUMENT_GENERATION,
+    );
+    if (!featureCheck.canUse) {
+      throw new BadRequestException(
+        `Feature not available in your plan. ${featureCheck.reason || 'Upgrade your plan to use this feature.'}`
+      );
+    }
+
+    // Track document generation usage (after validation passes)
     try {
       await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.DOCUMENT_GENERATION, 1);
     } catch (error) {
       console.error(`Failed to track document generation usage: ${error.message}`);
-      // Continue - usage tracking should not block document issuance
+      throw new BadRequestException('Failed to process document issuance. Please try again.');
     }
 
     let issuance = this.edocumentIssuanceRepository.create({

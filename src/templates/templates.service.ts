@@ -34,12 +34,22 @@ export class TemplatesService {
     // Get org ID for usage tracking
     const orgId = user.organizationId;
 
-    // Track template customization usage
+   const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+      orgId,
+      PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION,
+    );
+    if (!featureCheck.canUse) {
+      throw new BadRequestException(
+        `Feature not available in your plan. ${featureCheck.reason || 'Upgrade your plan to use this feature.'}`
+      );
+    }
+
+    // Track template customization usage (after validation passes)
     try {
       await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION, 1);
     } catch (error) {
       console.error(`Failed to track template customization usage: ${error.message}`);
-      // Continue - usage tracking should not block template creation
+      throw new BadRequestException('Failed to process template creation. Please try again.');
     }
 
     let template = await this.templateRepository.findOne({ where: { title } });

@@ -1,12 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SessionService } from './sessions.service';
 import { SessionController } from './sessions.controller';
-<<<<<<< HEAD
-import { Appointment, DiagnosisCodes, DoctorNotes, FileStorage, Note, Organization, Patient, Session, SessionCosting, Setting, Transcript, User, UserPlanUsage ,  UserPlan } from '@entities';
-import { SessionFeedback } from './entity/session-feedback.entity';
-=======
 import { Appointment, DiagnosisCodes, DoctorNotes, FileStorage, Note, Organization, Patient, Session, SessionCosting, Setting, Transcript, User, UserPlanUsage, UserPlan } from '@entities';
->>>>>>> 7522b51840dce6400aa86a0891a612f4c615d289
+import { SessionFeedback } from './entity/session-feedback.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileStorageModule } from 'src/file-storage/file-storage.module';
 import { ConfigService } from '@nestjs/config';
@@ -16,7 +12,7 @@ import { EncryptionModule } from 'src/common/encryption/encryption.module';
 
 @Module({
 
-  imports: [TypeOrmModule.forFeature([Organization, User, UserPlanUsage, UserPlan, Appointment, Session, Note, Transcript, DoctorNotes, DiagnosisCodes, Patient, Setting, FileStorage, SessionCosting]), FileStorageModule, EncryptionModule, CommonServicesModule],
+  imports: [TypeOrmModule.forFeature([Organization, User, UserPlanUsage, UserPlan, Appointment, Session, Note, Transcript, DoctorNotes, DiagnosisCodes, Patient, Setting, FileStorage, SessionCosting, SessionFeedback]), FileStorageModule, EncryptionModule, CommonServicesModule],
 
   controllers: [SessionController],
   providers: [

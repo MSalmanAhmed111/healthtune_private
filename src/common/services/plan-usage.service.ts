@@ -22,7 +22,8 @@ export class PlanUsageService {
     amount: number = 1,
   ): Promise<number> {
   
-    const userPlan = await this.userPlanRepository.findOne({
+    // First, try to find organization's plan
+    let userPlan = await this.userPlanRepository.findOne({
       where: {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: orgId,
@@ -73,7 +74,8 @@ export class PlanUsageService {
   }
 
   async getUsage(orgId: number, featureName: PlanFeatureNameEnum): Promise<number | null> {
-    const userPlan = await this.userPlanRepository.findOne({
+    // First, check organization's plan
+    let userPlan = await this.userPlanRepository.findOne({
       where: {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: orgId,
@@ -105,7 +107,8 @@ export class PlanUsageService {
       isUnlimited: boolean;
     }>
   > {
-    const userPlan = await this.userPlanRepository.findOne({
+    // First, check organization's plan
+    let userPlan = await this.userPlanRepository.findOne({
       where: {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: orgId,
@@ -133,7 +136,8 @@ export class PlanUsageService {
     orgId: number,
     featureName: PlanFeatureNameEnum,
   ): Promise<{ canUse: boolean; reason?: string }> {
-    const userPlan = await this.userPlanRepository.findOne({
+    // First, check organization's plan (prioritize org plan over user plan)
+    let userPlan = await this.userPlanRepository.findOne({
       where: {
         subscriberType: SubscriberType.ORGANIZATION,
         subscriberId: orgId,
