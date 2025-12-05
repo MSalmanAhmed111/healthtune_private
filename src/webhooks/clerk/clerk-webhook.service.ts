@@ -942,16 +942,18 @@ export class ClerkWebhookService {
     try {
       console.log(`📋 Creating default plan for organization: ${organization.name}`);
 
-      // Find basic plan template
+      // Find basic plan template with all its features
       const basicPlan = await this.planRepository.findOne({
         where: { name: SeedPlanNamesEnum.BASIC_PLAN },
-        relations: ['features'],
+        relations: ['features', 'features.feature'],
       });
 
       if (!basicPlan) {
         console.warn(`⚠️ Basic plan not found in database. Run seeder first: npm run seed:dev`);
         return;
       }
+
+      console.log(`📋 Basic plan found with ${basicPlan.features ? basicPlan.features.length : 0} features`);
 
       // Check if organization already has a plan
       const existingPlan = await this.userPlanRepository.findOne({
@@ -987,22 +989,30 @@ export class ClerkWebhookService {
       });
 
       // Initialize usage tracking for all plan features
-      for (const feature of basicPlan.features) {
-        if (feature?.properties?.isUnlimited === null) continue;
+      if (basicPlan.features && basicPlan.features.length > 0) {
+        for (const feature of basicPlan.features) {
+          if (feature?.properties?.isUnlimited === null) continue;
 
-        const newUsage = this.userPlanUsageRepository.create({
-          planFeatureProperty: feature,
-          planFeaturePropertyId: feature.id,
-          usageCount: feature.properties.limit || null,
-        });
+          const newUsage = this.userPlanUsageRepository.create({
+            planFeatureProperty: feature,
+            planFeaturePropertyId: feature.id,
+            usageCount: feature.properties.limit || null,
+          });
 
-        organizationPlan.usage.push(newUsage);
+          organizationPlan.usage.push(newUsage);
+        }
       }
 
       await this.userPlanRepository.save(organizationPlan);
-      console.log(`✅ Default organization plan created with ${basicPlan.features.length} features`);
+      console.log(`✅ Default organization plan created with ${basicPlan.features?.length || 0} features`);
+      
+      // Link the plan to the organization
+      organization.userPlanId = organizationPlan.id;
+      await this.organizationRepository.save(organization);
+      console.log(`🔗 Organization linked to plan`);
     } catch (error) {
       console.error(`❌ Error creating default organization plan:`, error.message);
+      console.error(`Stack:`, error.stack);
       throw error;
     }
   }
