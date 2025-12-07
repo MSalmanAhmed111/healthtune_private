@@ -130,7 +130,9 @@ export class SessionService {
         patient = await this.patientRepository.findOne({ where: { ...whereCondition, doctorId: userId } });
       }
       if (!patient) throw new NotFoundException(PatientErrorMessages.patientNotExists);
-      patientName = patient.firstName + '' + patient.lastName;
+
+      patient = this.decryptPatientData(patient);
+      patientName = patient.firstName + ' ' + patient.lastName;
       sex = patient.gender;
     } else if (patientFirstName && patientLastName) {
       if (patientRecordSettings.value) {
