@@ -119,7 +119,12 @@ export class SessionService {
     }
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
-    if (!patientRecordSettings || patientRecordSettings.value == undefined) throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
+    // Default to true if setting doesn't exist (backward compatibility)
+    const patientRecordsEnabled = patientRecordSettings?.value !== false;
+    
+    if (!patientRecordsEnabled) {
+      throw new NotFoundException(SessionErrorMessages.patientRecordSettingError);
+    }
 
     if (patientId) {
       const whereCondition = { id: patientId };
@@ -135,7 +140,7 @@ export class SessionService {
       patientName = patient.firstName + ' ' + patient.lastName;
       sex = patient.gender;
     } else if (patientFirstName && patientLastName) {
-      if (patientRecordSettings.value) {
+      if (patientRecordsEnabled) {
         //let mreCount = '0';
         const fetchedItem = await this.patientRepository.findOne({ where: {}, order: { id: 'DESC' } });
         const mreCount = fetchedItem.id;
