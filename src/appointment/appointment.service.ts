@@ -23,22 +23,23 @@ export class AppointmentService {
     private readonly encryptionService: EncryptionService,
   ) {}
 
-  async createAppointment(reqBody: CreateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
+  async createAppointment(reqBody: CreateAppointmentDto, doctorId: number): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, color, duration } = reqBody;
     if (reqBody.doctorId) doctorId = reqBody.doctorId;
+
+    if (!doctorId) {
+      throw new BadRequestException('Doctor ID is required for appointment creation');
+    }
+
     let where: any = {};
 
-    if (doctorId) {
-      let doctor = await this.userRepository.findOne({ where: { id: doctorId } });
-      if (!doctor) throw new NotFoundException('Doctor not exists');
+    let doctor = await this.userRepository.findOne({ where: { id: doctorId } });
+    if (!doctor) throw new NotFoundException('Doctor not exists');
 
-      const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: new Date(appointmentDate), doctorId } });
-      if (existingDoctorAppointment) throw new BadRequestException(AppointmentErrorMessages.doctorAppointmentAlreadyScheduled);
-      if (doctor.clerkOrganizationId) where = { id: patientId, organizationId: doctor.organizationId };
-      else where = { id: patientId, doctorId: doctor.id };
-    } else {
-      where = { id: patientId };
-    }
+    const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: new Date(appointmentDate), doctorId } });
+    if (existingDoctorAppointment) throw new BadRequestException(AppointmentErrorMessages.doctorAppointmentAlreadyScheduled);
+    if (doctor.clerkOrganizationId) where = { id: patientId, organizationId: doctor.organizationId };
+    else where = { id: patientId, doctorId: doctor.id };
 
     if (appointmentDate && new Date(appointmentDate).getTime() < Date.now()) throw new BadRequestException(AppointmentErrorMessages.appointmentDateInPast);
 
@@ -64,14 +65,19 @@ export class AppointmentService {
     appointment = await this.appointmentRepository.save(appointment);
     return { message: SuccessResponseMessages.successGeneral, data: appointment };
   }
-  async updateAppointment(appointmentId: number, reqBody: UpdateAppointmentDto, doctorId: number = undefined): Promise<ApiMessageData> {
+  async updateAppointment(appointmentId: number, reqBody: UpdateAppointmentDto, doctorId: number): Promise<ApiMessageData> {
     const { patientId, appointmentDate, appointmentType, consultationFee, location, isTelemedicine, roomNumber, notes, status, color, duration } = reqBody;
     if (reqBody.doctorId) doctorId = reqBody.doctorId;
+
+    if (!doctorId) {
+      throw new BadRequestException('Doctor ID is required for appointment update');
+    }
+
     let where: any;
     const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId } });
     if (!appointment) throw new NotFoundException(AppointmentErrorMessages.appointmentNotExists);
 
-    if (doctorId && doctorId !== appointment.doctorId) {
+    if (doctorId !== appointment.doctorId) {
       let doctor = await this.userRepository.findOne({ where: { id: doctorId } });
       if (!doctor) throw new BadRequestException('Doctor not exists');
 
@@ -94,14 +100,14 @@ export class AppointmentService {
     }
 
     if (appointmentDate && appointmentDate !== appointment.appointmentDate) {
-      const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: appointmentDate, doctorId: doctorId || appointment.doctorId, id: Not(appointmentId) } });
+      const existingDoctorAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: appointmentDate, doctorId: doctorId, id: Not(appointmentId) } });
       if (existingDoctorAppointment) throw new BadRequestException(AppointmentErrorMessages.doctorAppointmentAlreadyScheduled);
       const existingPatientAppointment = await this.appointmentRepository.findOne({ where: { appointmentDate: appointmentDate, patientId: patientId || appointment.patientId, id: Not(appointmentId) } });
       if (existingPatientAppointment) throw new BadRequestException(AppointmentErrorMessages.patientAppointmentAlreadyScheduled);
     }
 
     appointment.patientId = patientId || appointment.patientId;
-    appointment.doctorId = doctorId || appointment.doctorId;
+    appointment.doctorId = doctorId;
     appointment.appointmentDate = appointmentDate || appointment.appointmentDate;
     appointment.appointmentType = appointmentType || appointment.appointmentType;
     appointment.consultationFee = consultationFee || appointment.consultationFee;

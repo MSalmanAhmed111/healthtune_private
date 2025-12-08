@@ -271,7 +271,7 @@ export class ClerkWebhookService {
         const newUsage = this.userPlanUsageRepository.create({
           planFeatureProperty: feature,
           planFeaturePropertyId: feature.id,
-          usageCount: feature.properties.limit || null,
+          usageCount: 0,
         });
 
         userPlan.usage.push(newUsage);
@@ -996,7 +996,7 @@ export class ClerkWebhookService {
           const newUsage = this.userPlanUsageRepository.create({
             planFeatureProperty: feature,
             planFeaturePropertyId: feature.id,
-            usageCount: feature.properties.limit || null,
+            usageCount: 0,
           });
 
           organizationPlan.usage.push(newUsage);

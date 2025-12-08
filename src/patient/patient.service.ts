@@ -205,81 +205,93 @@ export class PatientService {
   }
 
 async getPatientsByAppointment(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
-    // Get user and organization context
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['organization', 'role', 'role.permissions'],
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
-
-    let qb = this.patientRepository.createQueryBuilder('patient');
-
-    if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
-    if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
-    if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
-
-    // Apply organization-based filtering
-    qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
-
-    if (user.role.name === UserRolesEnum.DOCTOR) {
-      const doctorSetting = await this.settingsRepository.findOne({
-        where: { userId: userId, name: SettingNames.EnablePatientByAppointments },
+    try {
+      // Get user and organization context
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['organization', 'role', 'role.permissions'],
       });
+      if (!user) throw new NotFoundException('User not found');
 
-      if (doctorSetting?.value === true) {
-        const todayStart = moment().startOf('day').toDate();
-        const todayEnd = moment().endOf('day').toDate();
+      const { query, page = 1, limit = 10, gender, maritalStatus, nationality, sort = 'DESC', byTodayAppointment = false } = getPatientDto;
 
-        qb.innerJoinAndSelect('patient.appointments', 'appointment').andWhere('appointment.doctorId = :userId', { userId }).andWhere('appointment.appointmentDate BETWEEN :todayStart AND :todayEnd', {
-          todayStart,
-          todayEnd,
-        });
+      let qb = this.patientRepository.createQueryBuilder('patient');
+
+      if (gender) qb.andWhere('LOWER(patient.gender) = LOWER(:gender)', { gender });
+      if (maritalStatus) qb.andWhere('LOWER(patient.maritalStatus) = LOWER(:maritalStatus)', { maritalStatus });
+      if (nationality) qb.andWhere('LOWER(patient.nationality) = LOWER(:nationality)', { nationality });
+
+      // Apply organization-based filtering
+      qb = await this.dataAccessService.applyPatientsOrganizationFilter(qb, user, userId, 'patient');
+
+      if (user.role && user.role.name === UserRolesEnum.DOCTOR) {
+        try {
+          const doctorSetting = await this.settingsRepository.findOne({
+            where: { userId: userId, name: SettingNames.EnablePatientByAppointments },
+          });
+
+          if (doctorSetting?.value === true) {
+            const todayStart = moment().startOf('day').toDate();
+            const todayEnd = moment().endOf('day').toDate();
+
+            qb.innerJoinAndSelect('patient.appointments', 'appointment')
+              .andWhere('appointment.doctorId = :userId', { userId })
+              .andWhere('appointment.appointmentDate BETWEEN :todayStart AND :todayEnd', {
+                todayStart,
+                todayEnd,
+              });
+          }
+        } catch (settingError) {
+          console.warn('Error fetching doctor appointment setting:', settingError.message);
+          // Continue without the setting filter
+        }
       }
-    }
 
-    // Get all matching patients (will filter by query in memory)
-    const allPatients = await qb.orderBy('patient.id', sort).getMany();
+      // Get all matching patients (will filter by query in memory)
+      const allPatients = await qb.orderBy('patient.id', sort).getMany();
 
-    // Decrypt all patients
-    const decryptedPatients = allPatients.map(patient => this.decryptPatientData(patient));
+      // Decrypt all patients
+      const decryptedPatients = allPatients.map(patient => this.decryptPatientData(patient));
 
-    // Filter by query on decrypted data
-    let filteredPatients = decryptedPatients;
-    if (query) {
-      const lowerQuery = query.toLowerCase();
-      filteredPatients = decryptedPatients.filter(patient => 
-        (patient.firstName && patient.firstName.toLowerCase().includes(lowerQuery)) ||
-        (patient.lastName && patient.lastName.toLowerCase().includes(lowerQuery)) ||
-        (patient.mreNumber && patient.mreNumber.toLowerCase().includes(lowerQuery)) ||
-        (patient.email && patient.email.toLowerCase().includes(lowerQuery))
-      );
-    }
-
-    // Apply pagination on filtered results
-    const startIndex = (page - 1) * limit;
-    const paginatedPatients = filteredPatients.slice(startIndex, startIndex + limit);
-    const total = filteredPatients.length;
-    const lastPage = Math.ceil(total / limit);
-
-    // Load profile images and appointments for paginated results
-    for (const patient of paginatedPatients) {
-      if (patient.profileImage) {
-        const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
-        if (image) patient.profileImage = { id: image.id, fileName: image.name };
+      // Filter by query on decrypted data
+      let filteredPatients = decryptedPatients;
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        filteredPatients = decryptedPatients.filter(patient => 
+          (patient.firstName && patient.firstName.toLowerCase().includes(lowerQuery)) ||
+          (patient.lastName && patient.lastName.toLowerCase().includes(lowerQuery)) ||
+          (patient.mreNumber && patient.mreNumber.toLowerCase().includes(lowerQuery)) ||
+          (patient.email && patient.email.toLowerCase().includes(lowerQuery))
+        );
       }
-      const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, relations: ['session'], order: { appointmentDate: 'ASC' } });
-      patient.appointments = appointments;
-    }
 
-    return {
-      message: SuccessResponseMessages.successGeneral,
-      data: paginatedPatients,
-      page,
-      total,
-      lastPage,
-    };
+      // Apply pagination on filtered results
+      const startIndex = (page - 1) * limit;
+      const paginatedPatients = filteredPatients.slice(startIndex, startIndex + limit);
+      const total = filteredPatients.length;
+      const lastPage = Math.ceil(total / limit);
+
+      // Load profile images and appointments for paginated results
+      for (const patient of paginatedPatients) {
+        if (patient.profileImage) {
+          const image = await this.fileStorageRepository.findOne({ where: { id: patient.profileImage as number } });
+          if (image) patient.profileImage = { id: image.id, fileName: image.name };
+        }
+        const appointments = await this.appointmentRepository.find({ where: { patientId: patient.id, appointmentDate: MoreThanOrEqual(moment().subtract(20, 'minutes').toDate()), status: Not(AppointmentStatus.Completed) }, relations: ['session'], order: { appointmentDate: 'ASC' } });
+        patient.appointments = appointments;
+      }
+
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: paginatedPatients,
+        page,
+        total,
+        lastPage,
+      };
+    } catch (error) {
+      console.error('Error in getPatientsByAppointment:', error.message);
+      throw new BadRequestException('Error fetching patients by appointment: ' + error.message);
+    }
   }
 
   async getPatients(getPatientDto: GetPatientsDto, userId: number): Promise<ApiMessageDataPagination> {
@@ -453,7 +465,7 @@ async getPatientsByAppointment(getPatientDto: GetPatientsDto, userId: number): P
       contactDetails: ['phoneNumber', 'emergencyContactName', 'emergencyContactPhone'],
       medicalDetails: ['medicalHistory', 'allergies', 'currentMedications', 'chronicDiseases', 'surgicalHistory'],
       insuranceDetails: ['insuranceProvider', 'insurancePolicyNumber'],
-      admitionDetails: ['admissionReason'],
+      admissionDetails: ['admissionReason'],
     };
 
     const decrypted = { ...patient };
