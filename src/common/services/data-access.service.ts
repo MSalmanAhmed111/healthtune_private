@@ -79,7 +79,7 @@ export class DataAccessService {
     const hasViewAllSessions = user.role.permissions.some((p) => p.key === PermissionEnum.VIEW_ALL_SESSIONS);
 
     if (user?.clerkOrganizationId && hasViewAllSessions) {
-      query = query.andWhere(`${alias}.organizationId = :orgId`, {
+      query = query.andWhere('user.organizationId = :orgId', {
         orgId: user.organizationId,
       });
       return query;

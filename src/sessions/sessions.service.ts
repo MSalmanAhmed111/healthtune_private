@@ -401,7 +401,7 @@ export class SessionService {
     }
 
     // Apply organization-based filtering
-    qb = await this.dataAccessService.applySessionsOrganizationFilter(qb, user, userId, 'patient');
+    qb = await this.dataAccessService.applySessionsOrganizationFilter(qb, user, userId, 'session');
     if (patientId) qb.andWhere('session.patientId = :patientId', { patientId });
 
     if (userIdFilter) qb.andWhere('session.userId = :userIdFilter', { userIdFilter });
