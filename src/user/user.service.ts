@@ -195,32 +195,86 @@ export class UserService {
   async getUser(userId: number): Promise<ApiMessageData> {
     const fetchedUser = await this.userRepository
       .createQueryBuilder('user')
-      .leftJoinAndSelect('user.userPlan', 'userPlan')
-      .leftJoinAndSelect('userPlan.plan', 'plan')
-      .leftJoinAndSelect('userPlan.usage', 'usage')
-      .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
-      .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
-      .select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'userPlan', 'plan', 'usage', 'planFeatureProperty', 'feature'])
+      .leftJoinAndSelect('user.organization', 'organization')
+      .select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'organization'])
       .where('user.id = :userId', { userId })
       .getOne();
 
     if (!fetchedUser) throw new NotFoundException(userErrorMessages.userNotExists);
+
     if (fetchedUser.profileImage) {
       const image = await this.fileStorageRepository.findOne({ where: { id: fetchedUser.profileImage as number } });
       if (image) fetchedUser.profileImage = { id: image.id, fileName: image.name };
     }
-    const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
-    if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
-      fetchedUser.userPlan.usage.forEach((usage) => {
-        const newUsage = {
+
+    // If user belongs to organization, fetch organization subscription
+    if (fetchedUser.organizationId) {
+      const userPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: fetchedUser.organizationId
+        },
+        relations: ['plan', 'usage', 'usage.planFeatureProperty', 'usage.planFeatureProperty.feature']
+      });
+
+      if (!userPlan || !userPlan.usage) {
+        return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: null } };
+      }
+
+      // Format organization usage with remaining count
+      const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
+      userPlan.usage.forEach((usage) => {
+        const limit = usage?.planFeatureProperty?.properties?.limit ?? null;
+        const usedCount = usage?.usageCount ?? 0;
+        const remaining = limit !== null ? limit - usedCount : null;
+        usageArray.push({
           featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
-          left: usage?.usageCount || null,
-          total: usage?.planFeatureProperty?.properties?.limit || null,
-        };
-        usageArray.push(newUsage);
+          left: remaining,
+          total: limit,
+        });
+      });
+
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: {
+          ...fetchedUser,
+          userPlan: { ...userPlan, usage: usageArray }
+        }
+      };
+    }
+
+    // If user is individual, fetch individual subscription (current logic)
+    const userPlan = await this.userPlanRepository
+      .createQueryBuilder('userPlan')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
+      .leftJoinAndSelect('userPlan.usage', 'usage')
+      .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
+      .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
+      .where('userPlan.subscriberType = :subscriberType', { subscriberType: SubscriberType.USER })
+      .andWhere('userPlan.subscriberId = :userId', { userId })
+      .getOne();
+
+    const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
+    if (userPlan && userPlan.usage && userPlan.usage.length > 0) {
+      userPlan.usage.forEach((usage) => {
+        const limit = usage?.planFeatureProperty?.properties?.limit ?? null;
+        const usedCount = usage?.usageCount ?? 0;
+        const remaining = limit !== null ? limit - usedCount : null;
+        usageArray.push({
+          featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
+          left: remaining,
+          total: limit,
+        });
       });
     }
-    return { message: SuccessResponseMessages.successGeneral, data: { ...fetchedUser, userPlan: { ...fetchedUser.userPlan, usage: usageArray } } };
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        ...fetchedUser,
+        userPlan: userPlan ? { ...userPlan, usage: usageArray } : null
+      }
+    };
   }
 
   async getOrganizationDoctors(getUsersDto: GetUsersDto, userId: number): Promise<ApiMessageDataPagination> {
@@ -301,7 +355,7 @@ export class UserService {
       throw new NotFoundException(userErrorMessages.userNotExists);
     }
 
-    // If user belongs to an organization, return organization subscription
+    // If user belongs to an organization, return organization usage
     if (user.organizationId) {
       const organization = await this.organizationRepository.findOne({
         where: { id: user.organizationId }
@@ -331,16 +385,22 @@ export class UserService {
         };
       }
 
-      // Format usage with feature names
-      const formattedUsage = subscription.usage?.map(u => ({
-        id: u.id,
-        planFeaturePropertyId: u.planFeaturePropertyId,
-        featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
-        usageCount: u.usageCount ?? 0,
-        updatedAt: u.updatedAt,
-        createdAt: u.createdAt,
-        properties: u.planFeatureProperty?.properties || {}
-      })) || [];
+      // Format usage with remaining count (limit - usageCount)
+      const formattedUsage = subscription.usage?.map(u => {
+        const limit = u.planFeatureProperty?.properties?.limit ?? null;
+        const usedCount = u.usageCount ?? 0;
+        const remaining = limit !== null ? limit - usedCount : null;
+        return {
+          id: u.id,
+          planFeaturePropertyId: u.planFeaturePropertyId,
+          featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+          left: remaining,
+          total: limit,
+          usageCount: usedCount,
+          updatedAt: u.updatedAt,
+          createdAt: u.createdAt,
+        };
+      }) || [];
 
       return {
         message: SuccessResponseMessages.successGeneral,
@@ -385,16 +445,22 @@ export class UserService {
       };
     }
 
-    // Format usage with feature names
-    const formattedUsage = subscription.usage?.map(u => ({
-      id: u.id,
-      planFeaturePropertyId: u.planFeaturePropertyId,
-      featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
-      usageCount: u.usageCount ?? 0,
-      updatedAt: u.updatedAt,
-      createdAt: u.createdAt,
-      properties: u.planFeatureProperty?.properties || {}
-    })) || [];
+    // Format usage with remaining count (limit - usageCount)
+    const formattedUsage = subscription.usage?.map(u => {
+      const limit = u.planFeatureProperty?.properties?.limit ?? null;
+      const usedCount = u.usageCount ?? 0;
+      const remaining = limit !== null ? limit - usedCount : null;
+      return {
+        id: u.id,
+        planFeaturePropertyId: u.planFeaturePropertyId,
+        featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+        left: remaining,
+        total: limit,
+        usageCount: usedCount,
+        updatedAt: u.updatedAt,
+        createdAt: u.createdAt,
+      };
+    }) || [];
 
     return {
       message: SuccessResponseMessages.successGeneral,
@@ -519,10 +585,13 @@ export class UserService {
       const usageArray: { featureName: string; left: number | null; total: number | null }[] = [];
       if (fetchedUser.userPlan && fetchedUser.userPlan.usage.length > 0) {
         fetchedUser.userPlan.usage.forEach((usage) => {
+          const limit = usage?.planFeatureProperty?.properties?.limit ?? null;
+          const usedCount = usage?.usageCount ?? 0;
+          const remaining = limit !== null ? limit - usedCount : null;
           const newUsage = {
             featureName: usage?.planFeatureProperty?.feature?.name || 'N/A',
-            left: usage?.usageCount || null,
-            total: usage?.planFeatureProperty?.properties?.limit || null,
+            left: remaining,
+            total: limit,
           };
           usageArray.push(newUsage);
         });
