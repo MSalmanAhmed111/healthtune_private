@@ -17,16 +17,16 @@ export class PlanUsageService {
   ) {}
 
   async trackUsage(
-    orgId: number,
+    subscriberId: number,
     featureName: PlanFeatureNameEnum,
     amount: number = 1,
   ): Promise<number> {
   
-    // First, try to find organization's plan
+    // Try to find user's plan first (individual subscription)
     let userPlan = await this.userPlanRepository.findOne({
       where: {
-        subscriberType: SubscriberType.ORGANIZATION,
-        subscriberId: orgId,
+        subscriberType: SubscriberType.USER,
+        subscriberId: subscriberId,
         isSubscriptionActive: true,
       },
       relations: [
@@ -36,8 +36,24 @@ export class PlanUsageService {
       ],
     });
 
+    // If no user plan, try organization plan
     if (!userPlan) {
-      throw new NotFoundException(`No active plan found for organization ${orgId}`);
+      userPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: subscriberId,
+          isSubscriptionActive: true,
+        },
+        relations: [
+          'usage',
+          'usage.planFeatureProperty',
+          'usage.planFeatureProperty.feature'
+        ],
+      });
+    }
+
+    if (!userPlan) {
+      throw new NotFoundException(`No active plan found for user/organization ${subscriberId}`);
     }
 
     // Find usage record for this feature
@@ -47,7 +63,7 @@ export class PlanUsageService {
 
     if (!usageRecord) {
       throw new NotFoundException(
-        `Usage record not found for feature ${featureName} in org ${orgId}`,
+        `Usage record not found for feature ${featureName} in user/org ${subscriberId}`,
       );
     }
 
@@ -73,12 +89,12 @@ export class PlanUsageService {
     return newCount;
   }
 
-  async getUsage(orgId: number, featureName: PlanFeatureNameEnum): Promise<number | null> {
-    // First, check organization's plan
+  async getUsage(subscriberId: number, featureName: PlanFeatureNameEnum): Promise<number | null> {
+    // First, check user's plan (individual subscription)
     let userPlan = await this.userPlanRepository.findOne({
       where: {
-        subscriberType: SubscriberType.ORGANIZATION,
-        subscriberId: orgId,
+        subscriberType: SubscriberType.USER,
+        subscriberId: subscriberId,
         isSubscriptionActive: true,
       },
       relations: [
@@ -87,6 +103,22 @@ export class PlanUsageService {
         'usage.planFeatureProperty.feature'
       ],
     });
+
+    // If no user plan, check organization's plan
+    if (!userPlan) {
+      userPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: subscriberId,
+          isSubscriptionActive: true,
+        },
+        relations: [
+          'usage',
+          'usage.planFeatureProperty',
+          'usage.planFeatureProperty.feature'
+        ],
+      });
+    }
 
     if (!userPlan) {
       return null;
@@ -100,18 +132,18 @@ export class PlanUsageService {
   }
 
 
-  async getAllUsage(orgId: number): Promise<
+  async getAllUsage(subscriberId: number): Promise<
     Array<{
       featureName: string;
       usageCount: number;
       isUnlimited: boolean;
     }>
   > {
-    // First, check organization's plan
+    // First, check user's plan (individual subscription)
     let userPlan = await this.userPlanRepository.findOne({
       where: {
-        subscriberType: SubscriberType.ORGANIZATION,
-        subscriberId: orgId,
+        subscriberType: SubscriberType.USER,
+        subscriberId: subscriberId,
         isSubscriptionActive: true,
       },
       relations: [
@@ -120,6 +152,22 @@ export class PlanUsageService {
         'usage.planFeatureProperty.feature'
       ],
     });
+
+    // If no user plan, check organization's plan
+    if (!userPlan) {
+      userPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: subscriberId,
+          isSubscriptionActive: true,
+        },
+        relations: [
+          'usage',
+          'usage.planFeatureProperty',
+          'usage.planFeatureProperty.feature'
+        ],
+      });
+    }
 
     if (!userPlan) {
       return [];
@@ -133,14 +181,14 @@ export class PlanUsageService {
   }
 
   async checkUsageLimitBeforeIncrement(
-    orgId: number,
+    subscriberId: number,
     featureName: PlanFeatureNameEnum,
   ): Promise<{ canUse: boolean; reason?: string }> {
-    // First, check organization's plan (prioritize org plan over user plan)
+    // First, check user's plan (individual subscription)
     let userPlan = await this.userPlanRepository.findOne({
       where: {
-        subscriberType: SubscriberType.ORGANIZATION,
-        subscriberId: orgId,
+        subscriberType: SubscriberType.USER,
+        subscriberId: subscriberId,
         isSubscriptionActive: true,
       },
       relations: [
@@ -150,8 +198,24 @@ export class PlanUsageService {
       ],
     });
 
+    // If no user plan, check organization's plan
     if (!userPlan) {
-      return { canUse: false, reason: `No active plan found for organization ${orgId}` };
+      userPlan = await this.userPlanRepository.findOne({
+        where: {
+          subscriberType: SubscriberType.ORGANIZATION,
+          subscriberId: subscriberId,
+          isSubscriptionActive: true,
+        },
+        relations: [
+          'usage',
+          'usage.planFeatureProperty',
+          'usage.planFeatureProperty.feature'
+        ],
+      });
+    }
+
+    if (!userPlan) {
+      return { canUse: false, reason: `No active plan found for user/organization ${subscriberId}` };
     }
 
     const usageRecord = userPlan.usage?.find(

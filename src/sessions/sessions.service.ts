@@ -82,41 +82,49 @@ export class SessionService {
       if (!appointment) throw new NotFoundException(SessionErrorMessages.appointmentNotFound);
     }
 
-    if (user.userPlan && user.userPlan.usage.length > 0) {
-      // Check if usage limit is reached before creating session
-      const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-        user.organizationId,
-        PlanFeatureNameEnum.SESSION_CREATION
-      );
-      if (!limitCheck.canUse) {
-        throw new BadRequestException(limitCheck.reason);
-      }
+    // Only check plan usage if user has an active plan with proper usage tracking
+    const userHasUserPlan = user.userPlan && user.userPlan.id;
+    const userHasUsageData = userHasUserPlan && Array.isArray(user.userPlan.usage) && user.userPlan.usage.length > 0;
+    const orgHasUserPlan = user.organization?.userPlan && user.organization.userPlan.id;
+    const orgHasUsageData = orgHasUserPlan && Array.isArray(user.organization.userPlan.usage) && user.organization.userPlan.usage.length > 0;
 
-      // Track usage consumption
+    // If user has a plan (subscription), track usage
+    if (userHasUserPlan) {
       try {
+        // Check if usage limit is reached before creating session
+        const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+          user.id,
+          PlanFeatureNameEnum.SESSION_CREATION
+        );
+        if (!limitCheck.canUse) {
+          throw new BadRequestException(limitCheck.reason);
+        }
+
+        // Track usage consumption
+        await this.planUsageService.trackUsage(user.id, PlanFeatureNameEnum.SESSION_CREATION, 1);
+      } catch (error) {
+        this.logger.error(`Failed to track user plan usage: ${error.message}`);
+        // Don't block session creation if tracking fails
+      }
+    } else if (orgHasUserPlan) {
+      try {
+        // Check if usage limit is reached before creating session (org plan)
+        const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+          user.organizationId,
+          PlanFeatureNameEnum.SESSION_CREATION
+        );
+        if (!limitCheck.canUse) {
+          throw new BadRequestException(limitCheck.reason);
+        }
+
+        // Track usage for organization plan
         await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.SESSION_CREATION, 1);
       } catch (error) {
-        this.logger.error(`Failed to track usage: ${error.message}`);
-        throw new BadRequestException('Failed to track usage consumption');
-      }
-    } else if (user.organization && user.organization.userPlan && user.organization.userPlan.usage && user.organization.userPlan.usage.length > 0) {
-      // Check if usage limit is reached before creating session (org plan)
-      const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-        user.organizationId,
-        PlanFeatureNameEnum.SESSION_CREATION
-      );
-      if (!limitCheck.canUse) {
-        throw new BadRequestException(limitCheck.reason);
-      }
-
-      // Track usage for organization plan
-      try {
-        await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.SESSION_CREATION, 1);
-      } catch (error) {
-        this.logger.error(`Failed to track org usage: ${error.message}`);
-        throw new BadRequestException('Failed to track usage consumption');
+        this.logger.error(`Failed to track org plan usage: ${error.message}`);
+        // Don't block session creation if tracking fails
       }
     }
+    // If no plan is active, allow session creation without usage tracking
 
     const patientRecordSettings = await this.settingRepository.findOne({ where: { name: 'Enable patient records', userId } });
     // Default to true if setting doesn't exist (backward compatibility)
