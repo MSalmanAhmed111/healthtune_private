@@ -79,7 +79,7 @@ export class PlanUsageService {
         .execute();
 
       if (!result.affected || result.affected === 0) {
-        this.logger.error(`Failed to update usage record for org ${orgId}, feature ${featureName}`);
+        this.logger.error(`Failed to update usage record for org ${subscriberId}, feature ${featureName}`);
       }
     } catch (dbErr) {
       this.logger.error(`Database update failed: ${dbErr.message}`);
