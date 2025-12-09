@@ -196,7 +196,7 @@ export class UserService {
     const fetchedUser = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.organization', 'organization')
-      .select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'organization'])
+      .select([...this.userFields, 'user.createdAt', 'user.updatedAt', 'user.organizationId', 'organization'])
       .where('user.id = :userId', { userId })
       .getOne();
 
