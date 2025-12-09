@@ -1,4 +1,4 @@
-import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty } from '@entities';
+import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty, User } from '@entities';
 import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { adminErrorMessages, SuccessResponseMessages } from '@messages';
 import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
@@ -19,6 +19,8 @@ export class AdminService {
     private readonly adminRepository: Repository<Admin>,
     @InjectRepository(Organization)
     private readonly organizationRepository: Repository<Organization>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Plan)
     private readonly planRepository: Repository<Plan>,
     @InjectRepository(UserPlan)
@@ -594,6 +596,393 @@ export class AdminService {
     return {
       message: SuccessResponseMessages.successGeneral,
       data: features
+    };
+  }
+
+  // Individual User Subscription Management Methods
+  async getAllIndividuals(): Promise<ApiMessageData> {
+    this.logger.log('Fetching all individual users with subscriptions');
+    
+    const individuals = await this.userPlanRepository.find({
+      where: {
+        subscriberType: SubscriberType.USER
+      },
+      relations: ['plan', 'usage'],
+      order: { createdAt: 'DESC' }
+    });
+
+    // Filter out users who are currently organization members
+    const individualUserIds = individuals.map(ind => ind.subscriberId || ind.userId);
+    
+    if (individualUserIds.length > 0) {
+      // Get users who are NOT organization members
+      const nonOrgUsers = await this.userRepository.find({
+        where: individualUserIds.map(id => ({ id })),
+        select: ['id']
+      });
+
+      const nonOrgUserIds = new Set(nonOrgUsers.map(u => u.id));
+      
+      // Filter individuals to only include those not in organizations
+      const filteredIndividuals = individuals.filter(ind => {
+        const userId = ind.subscriberId || ind.userId;
+        return nonOrgUserIds.has(userId);
+      });
+
+      const individualsWithSubscriptions = filteredIndividuals.map(userPlan => ({
+        id: userPlan.subscriberId || userPlan.userId,
+        subscriptionId: userPlan.id,
+        plan: userPlan.plan,
+        isActive: userPlan.isSubscriptionActive,
+        startDate: userPlan.startDate,
+        endDate: userPlan.endDate,
+        usageCount: userPlan.usage?.length || 0,
+        createdAt: userPlan.createdAt
+      }));
+
+      return {
+        message: SuccessResponseMessages.successGeneral,
+        data: individualsWithSubscriptions,
+      };
+    }
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: [],
+    };
+  }
+
+  async getIndividualDetails(userId: number): Promise<ApiMessageData> {
+    this.logger.log(`Fetching details for individual user: ${userId}`);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: {
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId
+      },
+      relations: [
+        'plan',
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ]
+    });
+
+    if (!subscription) {
+      throw new NotFoundException(`No subscription found for user ${userId}`);
+    }
+
+    // Format usage data with feature details and remaining counts
+    const usageDetails = subscription.usage?.map(u => {
+      const limit = u.planFeatureProperty?.properties?.limit ?? null;
+      const usedCount = u.usageCount ?? 0;
+      const remaining = limit !== null ? limit - usedCount : null;
+      return {
+        featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+        displayName: u.planFeatureProperty?.displayName || 'Unknown',
+        usedCount: usedCount,
+        left: remaining,
+        total: limit,
+        isUnlimited: u.planFeatureProperty?.properties?.isUnlimited ?? false,
+        limitType: u.planFeatureProperty?.properties?.limitType ?? null,
+      };
+    }) || [];
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        userId,
+        subscription: {
+          id: subscription.id,
+          plan: {
+            id: subscription.plan?.id,
+            name: subscription.plan?.name,
+            description: subscription.plan?.description,
+            price: subscription.plan?.price,
+            planType: subscription.plan?.planType,
+          },
+          isActive: subscription.isSubscriptionActive,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          usageCount: subscription.usage?.length || 0,
+          usage: usageDetails,
+          stripeCustomerId: subscription.stripeCustomerId,
+          stripeSubscriptionId: subscription.stripeSubscriptionId
+        }
+      }
+    };
+  }
+
+  async assignPlanToIndividual(userId: number, planId: number): Promise<ApiMessageData> {
+    this.logger.log(`Assigning plan ${planId} to individual user ${userId}`);
+    
+    // Validate plan exists
+    const plan = await this.planRepository.findOne({
+      where: { id: planId },
+      relations: ['features']
+    });
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    // Find existing subscription or create new one
+    let subscription = await this.userPlanRepository.findOne({
+      where: { 
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId 
+      },
+      relations: ['usage']
+    });
+
+    if (!subscription) {
+      // Create new subscription for individual
+      subscription = this.userPlanRepository.create({
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId,
+        userId: userId,
+        planId: plan.id,
+        plan: plan,
+        startDate: new Date(),
+        endDate: this.calculateEndDate(plan.planType),
+        resetDate: this.calculateEndDate(plan.planType),
+        isSubscriptionActive: true,
+      });
+    } else {
+      // Update existing subscription
+      subscription.planId = plan.id;
+      subscription.plan = plan;
+      subscription.startDate = new Date();
+      subscription.endDate = this.calculateEndDate(plan.planType);
+      subscription.resetDate = this.calculateEndDate(plan.planType);
+      subscription.isSubscriptionActive = true;
+
+      // Remove old usage records
+      if (subscription.usage?.length > 0) {
+        await this.userPlanUsageRepository.remove(subscription.usage);
+      }
+    }
+
+    // Create usage records BEFORE saving subscription
+    subscription.usage = [];
+    for (const feature of plan.features) {
+      const usage = this.userPlanUsageRepository.create({
+        planFeatureProperty: feature,
+        planFeaturePropertyId: feature.id,
+        usageCount: 0, // Start at 0 and increment as features are used
+      });
+      subscription.usage.push(usage);
+    }
+
+    // Save subscription with usage records in one operation
+    const savedSubscription = await this.userPlanRepository.save(subscription);
+
+    // Record in subscription history
+    await this.subscriptionHistoryRepository.save({
+      subscriberType: SubscriberType.USER,
+      subscriberId: userId,
+      userId: userId,
+      plan,
+      planId,
+      subscriptionDate: new Date(),
+      endDate: this.calculateEndDate(plan.planType),
+      isActive: true,
+      status: SubscriptionStatusEnum.SUBSCRIBED,
+      paymentMethod: PaymentMethodEnum.ADMIN_ASSIGNED,
+      amountPaid: 0, // Admin assigned, no payment
+      transactionId: `admin_assign_user_${Date.now()}`,
+    });
+
+    return {
+      message: 'Plan assigned to individual user successfully',
+      data: {
+        userId,
+        plan: {
+          id: plan.id,
+          name: plan.name,
+          price: plan.price,
+        },
+        subscription: {
+          id: savedSubscription.id,
+          isActive: savedSubscription.isSubscriptionActive,
+          startDate: savedSubscription.startDate,
+          endDate: savedSubscription.endDate,
+        }
+      },
+    };
+  }
+
+  async getIndividualSubscription(userId: number): Promise<ApiMessageData> {
+    this.logger.log(`Fetching subscription for individual user: ${userId}`);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: {
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId
+      },
+      relations: [
+        'plan',
+        'usage',
+        'usage.planFeatureProperty',
+        'usage.planFeatureProperty.feature'
+      ]
+    });
+
+    if (!subscription) {
+      return {
+        message: 'No subscription found for this user',
+        data: null
+      };
+    }
+
+    // Format usage with remaining counts
+    const formattedUsage = subscription.usage?.map(u => {
+      const limit = u.planFeatureProperty?.properties?.limit ?? null;
+      const usedCount = u.usageCount ?? 0;
+      const remaining = limit !== null ? limit - usedCount : null;
+      return {
+        id: u.id,
+        planFeaturePropertyId: u.planFeaturePropertyId,
+        featureName: u.planFeatureProperty?.feature?.name || 'Unknown',
+        left: remaining,
+        total: limit,
+        usageCount: usedCount,
+        updatedAt: u.updatedAt,
+        createdAt: u.createdAt,
+      };
+    }) || [];
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        id: subscription.id,
+        planName: subscription.plan?.name,
+        isSubscriptionActive: subscription.isSubscriptionActive,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        usage: formattedUsage,
+        features: subscription.plan?.features || []
+      }
+    };
+  }
+
+  async getIndividualSubscriptionHistory(userId: number): Promise<ApiMessageData> {
+    this.logger.log(`Fetching subscription history for individual user: ${userId}`);
+    
+    const history = await this.subscriptionHistoryRepository.find({
+      where: {
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId
+      },
+      relations: ['plan'],
+      order: { subscriptionDate: 'DESC' }
+    });
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: history
+    };
+  }
+
+  async cancelIndividualSubscription(userId: number): Promise<ApiMessageData> {
+    this.logger.log(`Cancelling subscription for individual user: ${userId}`);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: { 
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId 
+      },
+      relations: ['plan']
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('No active subscription found for this user');
+    }
+
+    // Deactivate subscription
+    subscription.isSubscriptionActive = false;
+    await this.userPlanRepository.save(subscription);
+
+    // Record cancellation in history
+    await this.subscriptionHistoryRepository.save({
+      subscriberType: SubscriberType.USER,
+      subscriberId: userId,
+      userId: userId,
+      plan: subscription.plan,
+      planId: subscription.planId,
+      subscriptionDate: new Date(),
+      endDate: subscription.endDate,
+      isActive: false,
+      status: SubscriptionStatusEnum.CANCELLED,
+      paymentMethod: PaymentMethodEnum.ADMIN_ASSIGNED,
+      amountPaid: 0,
+      transactionId: `admin_cancel_user_${Date.now()}`,
+    });
+
+    return {
+      message: 'Individual subscription cancelled successfully',
+      data: {
+        userId,
+        subscriptionId: subscription.id,
+        status: 'cancelled'
+      },
+    };
+  }
+
+  async updateIndividualUsage(userId: number, featureName: string, action: 'increment' | 'decrement' | 'reset'): Promise<ApiMessageData> {
+    this.logger.log(`Updating usage for user ${userId}, feature: ${featureName}, action: ${action}`);
+    
+    const subscription = await this.userPlanRepository.findOne({
+      where: {
+        subscriberType: SubscriberType.USER,
+        subscriberId: userId
+      },
+      relations: ['usage', 'usage.planFeatureProperty', 'usage.planFeatureProperty.feature']
+    });
+
+    if (!subscription) {
+      throw new NotFoundException(`No subscription found for user ${userId}`);
+    }
+
+    const usage = subscription.usage?.find(u => u.planFeatureProperty?.feature?.name === featureName);
+    if (!usage) {
+      throw new NotFoundException(`Feature "${featureName}" not found in user's subscription`);
+    }
+
+    const limit = usage.planFeatureProperty?.properties?.limit ?? null;
+    const previousCount = usage.usageCount ?? 0;
+    let newCount = previousCount;
+
+    switch (action) {
+      case 'increment':
+        if (limit !== null && previousCount >= limit) {
+          throw new BadRequestException(`User has reached the limit of ${limit} for feature "${featureName}"`);
+        }
+        newCount = previousCount + 1;
+        break;
+      case 'decrement':
+        newCount = Math.max(0, previousCount - 1);
+        break;
+      case 'reset':
+        newCount = 0;
+        break;
+    }
+
+    usage.usageCount = newCount;
+    await this.userPlanUsageRepository.save(usage);
+
+    const remaining = limit !== null ? limit - newCount : null;
+
+    return {
+      message: 'User usage updated successfully',
+      data: {
+        userId,
+        featureName,
+        previousCount,
+        newCount,
+        limit,
+        remaining,
+        action
+      },
     };
   }
 }

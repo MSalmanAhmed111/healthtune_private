@@ -259,4 +259,71 @@ export class AdminController {
   async getFeatures(): Promise<ApiMessageData> {
     return await this.adminService.getFeatures();
   }
+
+  //  ==================================================================================================================================================================
+  // ?                                                              INDIVIDUAL USER SUBSCRIPTION APIS
+  //  ==================================================================================================================================================================
+
+  @Get('/individuals')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all individual users with subscriptions')
+  async getAllIndividuals(): Promise<ApiMessageData> {
+    return await this.adminService.getAllIndividuals();
+  }
+
+  @Get('/individuals/:userId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get individual user subscription details')
+  async getIndividualDetails(@Param('userId', ValidateId) userId: number): Promise<ApiMessageData> {
+    return await this.adminService.getIndividualDetails(userId);
+  }
+
+  @Get('/individuals/:userId/subscription')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get individual user subscription')
+  async getIndividualSubscription(@Param('userId', ValidateId) userId: number): Promise<ApiMessageData> {
+    return await this.adminService.getIndividualSubscription(userId);
+  }
+
+  @Get('/individuals/:userId/subscription-history')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get individual subscription history')
+  async getIndividualSubscriptionHistory(@Param('userId', ValidateId) userId: number): Promise<ApiMessageData> {
+    return await this.adminService.getIndividualSubscriptionHistory(userId);
+  }
+
+  @Post('/individuals/:userId/assign-plan/:planId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Assign plan to individual user')
+  async assignPlanToIndividual(
+    @Param('userId', ValidateId) userId: number,
+    @Param('planId', ValidateId) planId: number
+  ): Promise<ApiMessageData> {
+    return await this.adminService.assignPlanToIndividual(userId, planId);
+  }
+
+  @Post('/individuals/:userId/cancel-subscription')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Cancel individual user subscription')
+  async cancelIndividualSubscription(@Param('userId', ValidateId) userId: number): Promise<ApiMessageData> {
+    return await this.adminService.cancelIndividualSubscription(userId);
+  }
+
+  @Put('/individuals/:userId/usage/:featureName/:action')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Update individual user feature usage')
+  async updateIndividualUsage(
+    @Param('userId', ValidateId) userId: number,
+    @Param('featureName') featureName: string,
+    @Param('action') action: 'increment' | 'decrement' | 'reset'
+  ): Promise<ApiMessageData> {
+    return await this.adminService.updateIndividualUsage(userId, featureName, action);
+  }
 }
