@@ -136,8 +136,12 @@ export class AdminController {
   @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all organizations with subscriptions')
-  async getAllOrganizations(): Promise<ApiMessageData> {
-    return await this.adminService.getAllOrganizations();
+  async getAllOrganizations(
+    @Query('country') country?: string,
+    @Query('state') state?: string,
+    @Query('city') city?: string,
+  ): Promise<ApiMessageData> {
+    return await this.adminService.getAllOrganizations(country, state, city);
   }
 
   @Get('/organizations/:organizationId')

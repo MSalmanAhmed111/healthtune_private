@@ -71,15 +71,34 @@ export class AdminService {
   }
 
   // Organization Subscription Management Methods
-  async getAllOrganizations(): Promise<ApiMessageData> {
-    const organizations = await this.organizationRepository.find({
-      relations: ['userPlan', 'userPlan.plan', 'userPlan.usage'],
-    });
+  async getAllOrganizations(country?: string, state?: string, city?: string): Promise<ApiMessageData> {
+    let query = this.organizationRepository.createQueryBuilder('org').leftJoinAndSelect('org.userPlan', 'userPlan').leftJoinAndSelect('userPlan.plan', 'plan').leftJoinAndSelect('userPlan.usage', 'usage');
+
+    let hasFilter = false;
+
+    if (country) {
+      query = query.where('org.country = :country', { country });
+      hasFilter = true;
+    }
+
+    if (state) {
+      query = hasFilter ? query.andWhere('org.state = :state', { state }) : query.where('org.state = :state', { state });
+      hasFilter = true;
+    }
+
+    if (city) {
+      query = hasFilter ? query.andWhere('org.city = :city', { city }) : query.where('org.city = :city', { city });
+    }
+
+    const organizations = await query.getMany();
 
     const organizationsWithSubscriptions = organizations.map(org => ({
       id: org.id,
       name: org.name,
       clerkOrganizationId: org.clerkOrganizationId,
+      country: org.country,
+      state: org.state,
+      city: org.city,
       createdAt: org.createdAt,
       subscription: org.userPlan ? {
         id: org.userPlan.id,

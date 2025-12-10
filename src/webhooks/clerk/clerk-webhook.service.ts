@@ -319,6 +319,13 @@ export class ClerkWebhookService {
     console.log(`🏢 Creating new organization: ${name} (${id})`);
     console.log(`👤 Created by user: ${created_by}`);
 
+    const address = public_metadata?.address || {};
+    const country = address.country || null;
+    const state = address.state || null;
+    const city = address.city || null;
+
+    console.log(`📍 Organization location: ${city}, ${state}, ${country}`);
+
     // Check if organization already exists
     let organization = await this.organizationRepository.findOne({
       where: { clerkOrganizationId: id },
@@ -382,6 +389,9 @@ export class ClerkWebhookService {
       name,
       slug,
       imageUrl: image_url,
+      country,
+      state,
+      city,
       publicMetadata: public_metadata,
       privateMetadata: private_metadata,
       createdAt: created_at ? new Date(created_at) : new Date(),
@@ -447,6 +457,13 @@ export class ClerkWebhookService {
 
     console.log(`🏢 Updating organization: ${name} (${id})`);
 
+    const address = public_metadata?.address || {};
+    const country = address.country || null;
+    const state = address.state || null;
+    const city = address.city || null;
+
+    console.log(`📍 Organization location: ${city}, ${state}, ${country}`);
+
     let organization = await this.organizationRepository.findOne({
       where: { clerkOrganizationId: id },
       relations: ['roles'],
@@ -461,6 +478,9 @@ export class ClerkWebhookService {
     organization.name = name ?? organization.name;
     organization.slug = slug ?? organization.slug;
     organization.imageUrl = image_url ?? organization.imageUrl;
+    organization.country = country ?? organization.country;
+    organization.state = state ?? organization.state;
+    organization.city = city ?? organization.city;
     organization.publicMetadata = public_metadata ?? organization.publicMetadata;
     organization.privateMetadata = private_metadata ?? organization.privateMetadata;
 

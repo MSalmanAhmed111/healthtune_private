@@ -21,6 +21,15 @@ export class Organization {
   @Column({ type: 'varchar', nullable: true })
   imageUrl?: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  country?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  state?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  city?: string;
+
   @Column({ type: 'jsonb', nullable: true })
   publicMetadata?: Record<string, any>;
 
