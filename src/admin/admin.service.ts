@@ -3,7 +3,7 @@ import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { adminErrorMessages, SuccessResponseMessages } from '@messages';
 import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ApiMessageData, SubscriptionStatusEnum, PaymentMethodEnum, PlanTypeEnum } from '@types';
+import { ApiMessageData, ApiMessageDataPagination, SubscriptionStatusEnum, PaymentMethodEnum, PlanTypeEnum } from '@types';
 import { Repository, Not } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -71,8 +71,18 @@ export class AdminService {
   }
 
   // Organization Subscription Management Methods
-  async getAllOrganizations(country?: string, state?: string, city?: string): Promise<ApiMessageData> {
-    let query = this.organizationRepository.createQueryBuilder('org').leftJoinAndSelect('org.userPlan', 'userPlan').leftJoinAndSelect('userPlan.plan', 'plan').leftJoinAndSelect('userPlan.usage', 'usage');
+  async getAllOrganizations(
+    paginationParams: PaginationQueryDto,
+    country?: string,
+    state?: string,
+    city?: string
+  ): Promise<ApiMessageDataPagination> {
+    const { page = 1, limit = 10 } = paginationParams;
+
+    let query = this.organizationRepository.createQueryBuilder('org')
+      .leftJoinAndSelect('org.userPlan', 'userPlan')
+      .leftJoinAndSelect('userPlan.plan', 'plan')
+      .leftJoinAndSelect('userPlan.usage', 'usage');
 
     let hasFilter = false;
 
@@ -82,15 +92,24 @@ export class AdminService {
     }
 
     if (state) {
-      query = hasFilter ? query.andWhere('org.state = :state', { state }) : query.where('org.state = :state', { state });
+      query = hasFilter
+        ? query.andWhere('org.state = :state', { state })
+        : query.where('org.state = :state', { state });
       hasFilter = true;
     }
 
     if (city) {
-      query = hasFilter ? query.andWhere('org.city = :city', { city }) : query.where('org.city = :city', { city });
+      query = hasFilter
+        ? query.andWhere('org.city = :city', { city })
+        : query.where('org.city = :city', { city });
     }
 
-    const organizations = await query.getMany();
+    // Add pagination
+    query = query.orderBy('org.createdAt', 'DESC')
+      .take(limit)
+      .skip((page - 1) * limit);
+
+    const [organizations, total] = await query.getManyAndCount();
 
     const organizationsWithSubscriptions = organizations.map(org => ({
       id: org.id,
@@ -100,19 +119,26 @@ export class AdminService {
       state: org.state,
       city: org.city,
       createdAt: org.createdAt,
-      subscription: org.userPlan ? {
-        id: org.userPlan.id,
-        plan: org.userPlan.plan,
-        isActive: org.userPlan.isSubscriptionActive,
-        startDate: org.userPlan.startDate,
-        endDate: org.userPlan.endDate,
-        usageCount: org.userPlan.usage?.length || 0
-      } : null
+      subscription: org.userPlan
+        ? {
+            id: org.userPlan.id,
+            plan: org.userPlan.plan,
+            isActive: org.userPlan.isSubscriptionActive,
+            startDate: org.userPlan.startDate,
+            endDate: org.userPlan.endDate,
+            usageCount: org.userPlan.usage?.length || 0
+          }
+        : null
     }));
+
+    const lastPage = Math.ceil(total / limit);
 
     return {
       message: SuccessResponseMessages.successGeneral,
       data: organizationsWithSubscriptions,
+      page,
+      lastPage,
+      total
     };
   }
 
@@ -619,55 +645,90 @@ export class AdminService {
   }
 
   // Individual User Subscription Management Methods
-  async getAllIndividuals(): Promise<ApiMessageData> {
+  async getAllIndividuals(paginationParams: PaginationQueryDto): Promise<ApiMessageDataPagination> {
     this.logger.log('Fetching all individual users with subscriptions');
     
-    const individuals = await this.userPlanRepository.find({
+    const { page = 1, limit = 10 } = paginationParams;
+
+    const [individuals, total] = await this.userPlanRepository.findAndCount({
       where: {
         subscriberType: SubscriberType.USER
       },
       relations: ['plan', 'usage'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: (page - 1) * limit
     });
 
-    // Filter out users who are currently organization members
+    // Get all user IDs from individuals
     const individualUserIds = individuals.map(ind => ind.subscriberId || ind.userId);
     
     if (individualUserIds.length > 0) {
-      // Get users who are NOT organization members
+      // Get full user details
       const nonOrgUsers = await this.userRepository.find({
-        where: individualUserIds.map(id => ({ id })),
-        select: ['id']
+        where: individualUserIds.map(id => ({ id }))
       });
 
-      const nonOrgUserIds = new Set(nonOrgUsers.map(u => u.id));
+      const nonOrgUserMap = new Map(nonOrgUsers.map(u => [u.id, u]));
       
       // Filter individuals to only include those not in organizations
       const filteredIndividuals = individuals.filter(ind => {
         const userId = ind.subscriberId || ind.userId;
-        return nonOrgUserIds.has(userId);
+        return nonOrgUserMap.has(userId);
       });
 
-      const individualsWithSubscriptions = filteredIndividuals.map(userPlan => ({
-        id: userPlan.subscriberId || userPlan.userId,
-        subscriptionId: userPlan.id,
-        plan: userPlan.plan,
-        isActive: userPlan.isSubscriptionActive,
-        startDate: userPlan.startDate,
-        endDate: userPlan.endDate,
-        usageCount: userPlan.usage?.length || 0,
-        createdAt: userPlan.createdAt
-      }));
+      const individualsWithSubscriptions = filteredIndividuals.map(userPlan => {
+        const userId = userPlan.subscriberId || userPlan.userId;
+        const user = nonOrgUserMap.get(userId);
+        
+        return {
+          user: {
+            id: user?.id,
+            email: user?.email,
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+            username: user?.username,
+            imageUrl: user?.imageUrl,
+            banned: user?.banned,
+            createdAt: user?.createdAt,
+            updatedAt: user?.updatedAt
+          },
+          subscription: {
+            id: userPlan.id,
+            planId: userPlan.planId,
+            plan: {
+              id: userPlan.plan?.id,
+              name: userPlan.plan?.name,
+              description: userPlan.plan?.description,
+              price: userPlan.plan?.price,
+              planType: userPlan.plan?.planType
+            },
+            isActive: userPlan.isSubscriptionActive,
+            startDate: userPlan.startDate,
+            endDate: userPlan.endDate,
+            usageCount: userPlan.usage?.length || 0,
+            createdAt: userPlan.createdAt
+          }
+        };
+      });
+
+      const lastPage = Math.ceil(total / limit);
 
       return {
         message: SuccessResponseMessages.successGeneral,
         data: individualsWithSubscriptions,
+        page,
+        lastPage,
+        total
       };
     }
 
     return {
       message: SuccessResponseMessages.successGeneral,
       data: [],
+      page,
+      lastPage: 0,
+      total: 0
     };
   }
 
