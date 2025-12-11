@@ -752,6 +752,11 @@ export class AdminService {
       throw new NotFoundException(`No subscription found for user ${userId}`);
     }
 
+    // Get user details separately
+    const userDetails = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
     // Format usage data with feature details and remaining counts
     const usageDetails = subscription.usage?.map(u => {
       const limit = u.planFeatureProperty?.properties?.limit ?? null;
@@ -772,6 +777,17 @@ export class AdminService {
       message: SuccessResponseMessages.successGeneral,
       data: {
         userId,
+        user: userDetails ? {
+          id: userDetails.id,
+          email: userDetails.email,
+          firstName: userDetails.firstName,
+          lastName: userDetails.lastName,
+          username: userDetails.username,
+          imageUrl: userDetails.imageUrl,
+          banned: userDetails.banned,
+          createdAt: userDetails.createdAt,
+          updatedAt: userDetails.updatedAt
+        } : null,
         subscription: {
           id: subscription.id,
           plan: {
