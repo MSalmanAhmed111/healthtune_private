@@ -27,15 +27,26 @@ export class MacrosService {
     // Get user with organization info
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['organization'],
+      relations: ['organization', 'organization.userPlan', 'userPlan'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // Get org ID for usage tracking
-    const orgId = user.organizationId;
+    // Determine which subscription to use: organization first, then individual
+    // Priority: If user belongs to organization with active plan → use ORG plan
+    //           If user has personal active plan → use USER plan
+    const belongsToOrg = user.organizationId !== null && user.organizationId !== undefined;
+    const orgHasActivePlan = belongsToOrg && user.organization?.userPlan && user.organization.userPlan.isSubscriptionActive;
+    const userHasActivePlan = user.userPlan && user.userPlan.isSubscriptionActive;
+    
+    let subscriberId: number | null = null;
+    if (orgHasActivePlan) {
+      subscriberId = user.organizationId;  // Use organization plan
+    } else if (userHasActivePlan) {
+      subscriberId = user.id;  // Use individual plan
+    }
 
     const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-      orgId,
+      subscriberId,
       PlanFeatureNameEnum.MACRO_REPLACEMENT,
     );
     if (!featureCheck.canUse) {
@@ -46,9 +57,9 @@ export class MacrosService {
 
     // Track usage consumption (increment for tracking after validation passes)
     try {
-      await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.MACRO_REPLACEMENT, 1);
+      await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.MACRO_REPLACEMENT, 1);
     } catch (error) {
-      this.logger.error(`Failed to track macro usage for org ${orgId}: ${error.message}`);
+      this.logger.error(`Failed to track macro usage for subscriber ${subscriberId}: ${error.message}`);
       throw new BadRequestException('Failed to process macro creation. Please try again.');
     }
 
@@ -103,14 +114,28 @@ export class MacrosService {
     if (userId) {
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        relations: ['organization'],
+        relations: ['organization', 'organization.userPlan', 'userPlan'],
       });
       if (user) {
-        try {
-          // Decrement to reverse the increment (restore the quota)
-          await this.planUsageService.trackUsage(user.organizationId, PlanFeatureNameEnum.MACRO_REPLACEMENT, -1);
-        } catch (error) {
-          // Don't block deletion if usage restoration fails
+        // Determine which subscription to use: organization first, then individual
+        const belongsToOrg = user.organizationId !== null && user.organizationId !== undefined;
+        const orgHasActivePlan = belongsToOrg && user.organization?.userPlan && user.organization.userPlan.isSubscriptionActive;
+        const userHasActivePlan = user.userPlan && user.userPlan.isSubscriptionActive;
+
+        let subscriberId: number | null = null;
+        if (orgHasActivePlan) {
+          subscriberId = user.organizationId; // Organization plan has priority
+        } else if (userHasActivePlan) {
+          subscriberId = user.id; // Fall back to individual plan
+        }
+
+        if (subscriberId) {
+          try {
+            // Decrement to reverse the increment (restore the quota)
+            await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.MACRO_REPLACEMENT, -1);
+          } catch (error) {
+            // Don't block deletion if usage restoration fails
+          }
         }
       }
     }

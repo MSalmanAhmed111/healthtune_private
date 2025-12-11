@@ -24,18 +24,30 @@ export class TemplatesService {
   async createTemplate(reqBody: CreateTemplateDto, language: string, userId: number): Promise<ApiMessageData> {
     const { title, prompt } = reqBody;
 
-    // Get user with organization info
+    // Get user with organization info and both subscription types
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['organization'],
+      relations: ['organization', 'organization.userPlan', 'userPlan'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // Get org ID for usage tracking
-    const orgId = user.organizationId;
+    // Determine which subscription to use: organization first, then individual
+    // Priority: If user belongs to organization with active plan → use ORG plan
+    //           If user has personal active plan → use USER plan
+    //           Otherwise → no plan to track
+    const belongsToOrg = user.organizationId !== null && user.organizationId !== undefined;
+    const orgHasActivePlan = belongsToOrg && user.organization?.userPlan && user.organization.userPlan.isSubscriptionActive;
+    const userHasActivePlan = user.userPlan && user.userPlan.isSubscriptionActive;
+    
+    let subscriberId: number | null = null;
+    if (orgHasActivePlan) {
+      subscriberId = user.organizationId;  // Use organization plan
+    } else if (userHasActivePlan) {
+      subscriberId = user.id;  // Use individual plan
+    }
 
    const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-      orgId,
+      subscriberId,
       PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION,
     );
     if (!featureCheck.canUse) {
@@ -46,7 +58,7 @@ export class TemplatesService {
 
     // Track template customization usage (after validation passes)
     try {
-      await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION, 1);
+      await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION, 1);
     } catch (error) {
       console.error(`Failed to track template customization usage: ${error.message}`);
       throw new BadRequestException('Failed to process template creation. Please try again.');
@@ -105,15 +117,28 @@ export class TemplatesService {
     if (userId) {
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        relations: ['organization'],
+        relations: ['organization', 'organization.userPlan', 'userPlan'],
       });
       if (user) {
-        const orgId = user.organizationId;
-        try {
-          await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION, -1);
-        } catch (error) {
-          console.error(`Failed to restore template customization usage: ${error.message}`);
-          // Continue - usage restoration should not block deletion
+        // Determine which subscription to use: organization first, then individual
+        const belongsToOrg = user.organizationId !== null && user.organizationId !== undefined;
+        const orgHasActivePlan = belongsToOrg && user.organization?.userPlan && user.organization.userPlan.isSubscriptionActive;
+        const userHasActivePlan = user.userPlan && user.userPlan.isSubscriptionActive;
+
+        let subscriberId: number | null = null;
+        if (orgHasActivePlan) {
+          subscriberId = user.organizationId; // Organization plan has priority
+        } else if (userHasActivePlan) {
+          subscriberId = user.id; // Fall back to individual plan
+        }
+
+        if (subscriberId) {
+          try {
+            await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.TEMPLATE_CUSTOMIZATION, -1);
+          } catch (error) {
+            console.error(`Failed to restore template customization usage: ${error.message}`);
+            // Continue - usage restoration should not block deletion
+          }
         }
       }
     }

@@ -80,10 +80,10 @@ export class EDocumentService {
   async issueDocument(upsertDocumentIssuanceDto: UpsertDocumentIssuanceDto, doctorId: number): Promise<ApiMessageData> {
     const { documentId, issuedToOrgCode, description, patientId, fieldValues, businessProductId, tagId } = upsertDocumentIssuanceDto;
 
-    // Get user with organization info
+    // Get user with organization info and both subscription types
     const user = await this.userRepository.findOne({
       where: { id: doctorId },
-      relations: ['organization'],
+      relations: ['organization', 'organization.userPlan', 'userPlan'],
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -104,11 +104,20 @@ export class EDocumentService {
       throw new BadRequestException('Field IDs must be unique in fieldValues');
     }
 
-    // Get org ID for usage tracking
-    const orgId = user.organizationId;
+    // Determine which subscription to use: organization first, then individual
+    const belongsToOrg = user.organizationId !== null && user.organizationId !== undefined;
+    const orgHasActivePlan = belongsToOrg && user.organization?.userPlan && user.organization.userPlan.isSubscriptionActive;
+    const userHasActivePlan = user.userPlan && user.userPlan.isSubscriptionActive;
+
+    let subscriberId: number | null = null;
+    if (orgHasActivePlan) {
+      subscriberId = user.organizationId; // Organization plan has priority
+    } else if (userHasActivePlan) {
+      subscriberId = user.id; // Fall back to individual plan
+    }
 
    const featureCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-      orgId,
+      subscriberId,
       PlanFeatureNameEnum.DOCUMENT_GENERATION,
     );
     if (!featureCheck.canUse) {
@@ -119,7 +128,7 @@ export class EDocumentService {
 
     // Track document generation usage (after validation passes)
     try {
-      await this.planUsageService.trackUsage(orgId, PlanFeatureNameEnum.DOCUMENT_GENERATION, 1);
+      await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.DOCUMENT_GENERATION, 1);
     } catch (error) {
       console.error(`Failed to track document generation usage: ${error.message}`);
       throw new BadRequestException('Failed to process document issuance. Please try again.');
