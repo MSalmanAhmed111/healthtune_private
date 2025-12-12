@@ -8,7 +8,7 @@ import { Repository, Not } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { AdminLoginDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto } from '@dtos';
+import { AdminLoginDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto, OrganizationQueryDto } from '@dtos';
 
 @Injectable()
 export class AdminService {
@@ -71,13 +71,8 @@ export class AdminService {
   }
 
   // Organization Subscription Management Methods
-  async getAllOrganizations(
-    paginationParams: PaginationQueryDto,
-    country?: string,
-    state?: string,
-    city?: string
-  ): Promise<ApiMessageDataPagination> {
-    const { page = 1, limit = 10 } = paginationParams;
+  async getAllOrganizations(queryParams: OrganizationQueryDto): Promise<ApiMessageDataPagination> {
+    const { page = 1, limit = 10, country, state, city } = queryParams;
 
     let query = this.organizationRepository.createQueryBuilder('org')
       .leftJoinAndSelect('org.userPlan', 'userPlan')

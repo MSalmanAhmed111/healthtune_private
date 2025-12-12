@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SwaggerApiResponse } from '@decorators';
-import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto } from '@dtos';
+import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto, OrganizationQueryDto } from '@dtos';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { UserService } from 'src/user/user.service';
 import { ApiTags } from '@nestjs/swagger';
@@ -136,13 +136,8 @@ export class AdminController {
   @AuthType('admin')
   @HttpCode(HttpStatus.OK)
   @SwaggerApiResponse('Get all organizations with subscriptions')
-  async getAllOrganizations(
-    @Query() paginationParams: PaginationQueryDto,
-    @Query('country') country?: string,
-    @Query('state') state?: string,
-    @Query('city') city?: string,
-  ): Promise<ApiMessageData> {
-    return await this.adminService.getAllOrganizations(paginationParams, country, state, city);
+  async getAllOrganizations(@Query() queryParams: OrganizationQueryDto): Promise<ApiMessageData> {
+    return await this.adminService.getAllOrganizations(queryParams);
   }
 
   @Get('/organizations/:organizationId')
