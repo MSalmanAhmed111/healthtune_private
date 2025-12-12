@@ -556,6 +556,21 @@ export class ClerkWebhookService {
         if (!orgEntity) {
           console.log(`🏢 Organization not found, creating: ${organization.name}`);
           orgEntity = await this.createOrganizationFromMembership(organization);
+        } else {
+          // Organization exists, ensure location data is synced
+          const address = organization.public_metadata?.address || {};
+          const country = address.country || null;
+          const state = address.state || null;
+          const city = address.city || null;
+
+          if (country || state || city) {
+            console.log(`📍 Updating organization location: ${city}, ${state}, ${country}`);
+            orgEntity.country = country ?? orgEntity.country;
+            orgEntity.state = state ?? orgEntity.state;
+            orgEntity.city = city ?? orgEntity.city;
+            await this.organizationRepository.save(orgEntity);
+            console.log(`✅ Organization location updated`);
+          }
         }
 
         // Update user with organization membership
