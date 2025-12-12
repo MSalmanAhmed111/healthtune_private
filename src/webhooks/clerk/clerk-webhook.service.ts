@@ -538,10 +538,12 @@ export class ClerkWebhookService {
 
       const user_id = public_user_data.user_id;
       const organization_id = organization.id;
+      const customRoleKey = public_metadata?.userRole;
 
       console.log(`👤 Processing user: ${public_user_data.identifier} (${user_id})`);
       console.log(`🏢 Organization: ${organization.name} (${organization_id})`);
       console.log(`🎭 Role: ${role_name} (${role})`);
+      console.log(`🎯 Custom Role from metadata:`, customRoleKey);
       console.log(`🔐 Permissions:`, permissions);
 
       // Retry finding the user with timer to handle concurrent user creation
@@ -573,12 +575,24 @@ export class ClerkWebhookService {
           }
         }
 
+        // Get the organization-specific role if provided, otherwise use default
+        let roleId = null;
+        if (customRoleKey) {
+          roleId = await this.getDefaultRole(customRoleKey);
+          console.log(`🔍 Looking for custom role: ${customRoleKey}, found roleId: ${roleId}`);
+        }
+        
+        if (!roleId) {
+          console.log(`⚠️ Custom role not found, using default role`);
+          roleId = (await this.getDefaultRole(role.toLowerCase())) || (await this.getDefaultRole(DefaultRoleEnum.ADMIN));
+        }
+
         // Update user with organization membership
         user.organization = orgEntity;
         user.organizationId = orgEntity.id;
         user.clerkOrganizationId = organization_id;
-        user.roleId = (await this.getDefaultRole(role.toLowerCase())) || (await this.getDefaultRole(role.toLowerCase())) || (await this.getDefaultRole(DefaultRoleEnum.ADMIN));
-        console.log({ role_name, role, roleId: user.roleId });
+        user.roleId = roleId;
+        console.log({ role_name, role, customRoleKey, roleId: user.roleId });
         await this.userRepository.save(user);
 
         console.log(`✅ User ${user.email} added to organization ${orgEntity.name} as ${user.role}`);
@@ -662,6 +676,10 @@ export class ClerkWebhookService {
     console.log(`📧 Processing accepted invitation for: ${email_address}`);
     console.log(`🏢 Organization ID: ${organization_id}`);
     console.log(`🎭 Role: ${role_name} (${role})`);
+    console.log(`🎯 Custom Role from metadata:`, public_metadata?.userRole);
+
+    // Extract the custom role from public_metadata
+    const customRoleKey = public_metadata?.userRole;
 
     // Check if user already exists
     let user = await this.userRepository.findOne({
@@ -684,10 +702,22 @@ export class ClerkWebhookService {
         };
       }
 
+      // Get the organization-specific role if provided, otherwise use default
+      let roleId = null;
+      if (customRoleKey) {
+        roleId = await this.getDefaultRole(customRoleKey);
+        console.log(`🔍 Looking for custom role: ${customRoleKey}, found roleId: ${roleId}`);
+      }
+      
+      if (!roleId) {
+        console.log(`⚠️ Custom role not found, using default role`);
+        roleId = (await this.getDefaultRole(role)) || (await this.getDefaultRole(DefaultRoleEnum.DOCTOR));
+      }
+
       // Update user with organization info
       user.organizationId = organization.id;
       user.clerkOrganizationId = organization_id;
-      user.roleId = (await this.getDefaultRole(role)) || (await this.getDefaultRole(role)) || (await this.getDefaultRole(DefaultRoleEnum.DOCTOR));
+      user.roleId = roleId;
 
       await this.userRepository.save(user);
 
@@ -717,44 +747,77 @@ export class ClerkWebhookService {
       where: { clerkOrganizationId: organization_id },
     });
 
-    // Create basic user record
-    const newUser = this.userRepository.create({
-      email: email_address,
-      clerkUserId: `pending_${invitationId}`,
-      organizationId: organization?.id || null,
-      clerkOrganizationId: organization_id,
-      roleId: (await this.getDefaultRole(role)) || (await this.getDefaultRole(role)) || (await this.getDefaultRole(DefaultRoleEnum.DOCTOR)),
-    });
+    // Get the organization-specific role if provided, otherwise use default
+    let roleId = null;
+    if (customRoleKey) {
+      roleId = await this.getDefaultRole(customRoleKey);
+      console.log(`🔍 Looking for custom role: ${customRoleKey}, found roleId: ${roleId}`);
+    }
+    
+    if (!roleId) {
+      console.log(`⚠️ Custom role not found, using default role`);
+      roleId = (await this.getDefaultRole(role)) || (await this.getDefaultRole(DefaultRoleEnum.DOCTOR));
+    }
 
-    const savedUser = await this.userRepository.save(newUser);
+    // Create basic user record (only if user doesn't exist from user.created webhook)
+    try {
+      const newUser = this.userRepository.create({
+        email: email_address,
+        clerkUserId: `pending_${invitationId}`,
+        organizationId: organization?.id || null,
+        clerkOrganizationId: organization_id,
+        roleId,
+      });
 
-    console.log(`✅ Created pending user record for invitation: ${email_address}`);
-    console.log(`🔄 User will be fully populated when user.created event triggers`);
+      const savedUser = await this.userRepository.save(newUser);
 
-    return {
-      message: 'Pending user created for accepted invitation',
-      data: {
-        user: {
-          id: savedUser.id,
-          email: savedUser.email,
-          role: savedUser.roleId,
-          status: 'pending_full_creation',
+      console.log(`✅ Created pending user record for invitation: ${email_address}`);
+      console.log(`🔄 User will be fully populated when user.created event triggers`);
+
+      return {
+        message: 'Pending user created for accepted invitation',
+        data: {
+          user: {
+            id: savedUser.id,
+            email: savedUser.email,
+            role: savedUser.roleId,
+            status: 'pending_full_creation',
+          },
+          organization: organization
+            ? {
+                id: organization.id,
+                name: organization.name,
+              }
+            : {
+                clerkId: organization_id,
+                status: 'not_synced_yet',
+              },
+          invitation: {
+            id: invitationId,
+            role: role_name || role,
+          },
         },
-        organization: organization
-          ? {
-              id: organization.id,
-              name: organization.name,
-            }
-          : {
-              clerkId: organization_id,
-              status: 'not_synced_yet',
-            },
-        invitation: {
-          id: invitationId,
-          role: role_name || role,
-        },
-      },
-    };
+      };
+    } catch (error) {
+      // If duplicate user error (user.created webhook already created the user)
+      if (error.code === '23505' && error.detail?.includes('email')) {
+        console.log(`⚠️ User already exists from user.created webhook, skipping pending user creation`);
+        console.log(`🔄 User will be updated by organizationMembership.created webhook`);
+        
+        return {
+          message: 'User already created from user.created webhook, will be updated by membership event',
+          data: {
+            email_address,
+            organization_id,
+            customRole: customRoleKey,
+            note: 'organizationMembership.created will handle the role assignment',
+          },
+        };
+      }
+      
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   /**
