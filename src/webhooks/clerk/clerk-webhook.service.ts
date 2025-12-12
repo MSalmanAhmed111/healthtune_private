@@ -895,11 +895,22 @@ export class ClerkWebhookService {
     }
   }
   private async createOrganizationFromMembership(organizationData: any): Promise<Organization> {
+    // Extract location data from public_metadata
+    const address = organizationData.public_metadata?.address || {};
+    const country = address.country || null;
+    const state = address.state || null;
+    const city = address.city || null;
+
+    console.log(`📍 Organization location (from membership): ${city}, ${state}, ${country}`);
+
     const organization = this.organizationRepository.create({
       clerkOrganizationId: organizationData.id,
       name: organizationData.name,
       slug: organizationData.slug,
       imageUrl: organizationData.image_url,
+      country,
+      state,
+      city,
       publicMetadata: organizationData.public_metadata,
       privateMetadata: organizationData.private_metadata,
       createdAt: organizationData.created_at ? new Date(organizationData.created_at) : new Date(),
@@ -908,6 +919,7 @@ export class ClerkWebhookService {
     const savedOrg = await this.organizationRepository.save(organization);
 
     console.log(`✅ Organization created from membership: ${savedOrg.name}`);
+    console.log(`✅ Location saved: ${savedOrg.city}, ${savedOrg.state}, ${savedOrg.country}`);
     return savedOrg;
   }
 

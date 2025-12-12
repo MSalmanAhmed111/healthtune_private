@@ -115,18 +115,23 @@ export class AdminService {
       id: org.id,
       name: org.name,
       clerkOrganizationId: org.clerkOrganizationId,
+      slug: org.slug,
       country: org.country,
       state: org.state,
       city: org.city,
+      isActive: org.isActive,
       createdAt: org.createdAt,
+      updatedAt: org.updatedAt,
       subscription: org.userPlan
         ? {
             id: org.userPlan.id,
+            planId: org.userPlan.planId,
             plan: org.userPlan.plan,
             isActive: org.userPlan.isSubscriptionActive,
             startDate: org.userPlan.startDate,
             endDate: org.userPlan.endDate,
-            usageCount: org.userPlan.usage?.length || 0
+            usageCount: org.userPlan.usage?.length || 0,
+            createdAt: org.userPlan.createdAt
           }
         : null
     }));
@@ -361,10 +366,17 @@ export class AdminService {
       data: {
         id: organization.id,
         name: organization.name,
+        slug: organization.slug,
         clerkOrganizationId: organization.clerkOrganizationId,
+        country: organization.country,
+        state: organization.state,
+        city: organization.city,
+        isActive: organization.isActive,
         createdAt: organization.createdAt,
+        updatedAt: organization.updatedAt,
         subscription: organization.userPlan ? {
           id: organization.userPlan.id,
+          planId: organization.userPlan.planId,
           plan: {
             id: organization.userPlan.plan?.id,
             name: organization.userPlan.plan?.name,
@@ -376,7 +388,8 @@ export class AdminService {
           startDate: organization.userPlan.startDate,
           endDate: organization.userPlan.endDate,
           usageCount: organization.userPlan.usage?.length || 0,
-          usage: usageDetails
+          usage: usageDetails,
+          createdAt: organization.userPlan.createdAt
         } : null
       }
     };
