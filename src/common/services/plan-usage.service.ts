@@ -39,7 +39,24 @@ export class PlanUsageService {
       query.andWhere('plan.subscriberType = :subscriberType', { subscriberType });
     }
 
-    return await query.getOne();
+    const result = await query.getOne();
+    
+    this.logger.debug(
+      `[FIND_PLAN_DEBUG] Query for subscriber ${subscriberId} (type: ${subscriberType || 'any'}): ` +
+      `Found plan ID: ${result?.id}, Usage count: ${result?.usage?.length || 0}`
+    );
+    
+    if (result?.usage && result.usage.length > 0) {
+      this.logger.debug(
+        `[FIND_PLAN_DEBUG] Plan features: ${result.usage.map(u => ({
+          id: u.id,
+          usageCount: u.usageCount,
+          featureName: u.planFeatureProperty?.feature?.name,
+        }))}` 
+      );
+    }
+
+    return result;
   }
 
 
@@ -242,13 +259,25 @@ export class PlanUsageService {
         };
       }
 
+      this.logger.debug(
+        `[PLAN_USAGE_DEBUG] Plan found for subscriber ${subscriberId}. Usage records: ${JSON.stringify(
+          userPlan.usage?.map(u => ({
+            featureName: u.planFeatureProperty?.feature?.name,
+            featureId: u.planFeatureProperty?.feature?.id,
+            usageCount: u.usageCount,
+            limit: u.planFeatureProperty?.properties?.limit,
+            isUnlimited: u.planFeatureProperty?.properties?.isUnlimited,
+          }))
+        )}`
+      );
+
       const usageRecord = userPlan.usage?.find(
         u => u.planFeatureProperty?.feature?.name === featureName,
       );
 
       if (!usageRecord) {
-        this.logger.debug(
-          `Feature ${featureName} not found in plan for subscriber ${subscriberId}`
+        this.logger.error(
+          `[PLAN_USAGE_DEBUG] Feature '${featureName}' not found in plan for subscriber ${subscriberId}. Available features: ${userPlan.usage?.map(u => u.planFeatureProperty?.feature?.name).join(', ') || 'NONE'}`
         );
         return { 
           canUse: false, 
@@ -264,6 +293,10 @@ export class PlanUsageService {
       // Check if usage limit reached
       const limit = usageRecord.planFeatureProperty?.properties?.limit;
       const currentUsage = usageRecord.usageCount ?? 0;
+
+      this.logger.debug(
+        `[PLAN_USAGE_DEBUG] Checking limit for ${featureName}: limit=${limit}, current=${currentUsage}`
+      );
 
       if (limit !== undefined && currentUsage >= limit) {
         this.logger.warn(
