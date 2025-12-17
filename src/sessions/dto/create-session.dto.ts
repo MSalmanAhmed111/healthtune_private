@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 import { Trim } from '@decorators';
 import { GenderEnum } from '@types';
 import { Type } from 'class-transformer';
@@ -36,8 +36,10 @@ export class CreateSessionDto {
   patientLastName: string;
 
   @ApiProperty({ description: 'Gender of the patient' })
+  @IsOptional()
+  @ValidateIf((o) => o.sex !== undefined && o.sex !== null)
   @IsEnum(GenderEnum)
-  sex: GenderEnum;
+  sex?: GenderEnum;
 
   @ApiProperty({ description: 'Type of the session' })
   @IsNotEmpty()
