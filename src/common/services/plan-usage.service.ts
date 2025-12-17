@@ -24,6 +24,7 @@ export class PlanUsageService {
 
     const query = this.userPlanRepository
       .createQueryBuilder('plan')
+      .leftJoinAndSelect('plan.plan', 'planEntity')
       .leftJoinAndSelect('plan.usage', 'usage')
       .leftJoinAndSelect('usage.planFeatureProperty', 'planFeatureProperty')
       .leftJoinAndSelect('planFeatureProperty.feature', 'feature')
@@ -48,11 +49,14 @@ export class PlanUsageService {
     amount: number = 1,
   ): Promise<number> {
     try {
+      this.logger.debug(`[USAGE_TRACKING] Starting usage tracking for subscriber ${subscriberId}, feature ${featureName}`);
+      
       // Try to find user's plan first (individual subscription)
       let userPlan = await this.findActivePlan(subscriberId, SubscriberType.USER);
 
       // If no user plan, try organization plan
       if (!userPlan) {
+        this.logger.debug(`[USAGE_TRACKING] No USER plan found for subscriber ${subscriberId}, trying ORGANIZATION plan`);
         userPlan = await this.findActivePlan(subscriberId, SubscriberType.ORGANIZATION);
       }
 
@@ -69,7 +73,8 @@ export class PlanUsageService {
 
       const planType = userPlan.subscriberType === SubscriberType.USER ? 'USER' : 'ORGANIZATION';
       this.logger.debug(
-        `[USAGE_TRACKING] Found ${planType} plan (ID: ${userPlan.id}, Plan: ${userPlan.plan?.name})`
+        `[USAGE_TRACKING] Found ${planType} plan (ID: ${userPlan.id}, Plan: ${userPlan.plan?.name}), ` +
+        `Usage records count: ${userPlan.usage?.length || 0}`
       );
 
       // Find usage record for this feature
@@ -80,13 +85,15 @@ export class PlanUsageService {
       if (!usageRecord) {
         this.logger.error(
           `[USAGE_TRACKING] Feature '${featureName}' not found in plan '${userPlan.plan?.name}' ` +
-          `for ${planType} ${subscriberId}`
+          `for ${planType} ${subscriberId}. Available features: ${userPlan.usage?.map(u => u.planFeatureProperty?.feature?.name).join(', ') || 'NONE'}`
         );
         throw new NotFoundException(
           `Usage record not found for feature ${featureName} in subscription. ` +
           `Feature may not be included in this plan.`
         );
       }
+
+      this.logger.debug(`[USAGE_TRACKING] Found usage record ID: ${usageRecord.id}, current count: ${usageRecord.usageCount}`);
 
       // Verify plan hasn't expired mid-operation (extra safety check)
       if (userPlan.endDate && userPlan.endDate <= new Date()) {
@@ -118,6 +125,8 @@ export class PlanUsageService {
         throw new Error('Database update failed - no rows affected');
       }
 
+      this.logger.debug(`[USAGE_TRACKING] Update query executed. Affected rows: ${result.affected}`);
+
       // Fetch updated record to return new count
       const updatedRecord = await this.userPlanUsageRepository.findOne({
         where: { id: usageRecord.id },
@@ -131,7 +140,7 @@ export class PlanUsageService {
       return updatedRecord?.usageCount ?? 0;
     } catch (error) {
       this.logger.error(
-        `[USAGE_TRACKING] Error tracking usage for feature '${featureName}': ${error.message}`
+        `[USAGE_TRACKING] Error tracking usage for feature '${featureName}' for subscriber ${subscriberId}: ${error.message}`
       );
       throw error;
     }

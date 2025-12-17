@@ -94,19 +94,22 @@ export class SessionService {
     }
 
     if (subscriberId) {
-      try {
-        const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
-          subscriberId,
-          PlanFeatureNameEnum.SESSION_CREATION
-        );
-        if (!limitCheck.canUse) {
-          throw new BadRequestException(limitCheck.reason);
-        }
+      const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
+        subscriberId,
+        PlanFeatureNameEnum.SESSION_CREATION
+      );
+      if (!limitCheck.canUse) {
+        throw new BadRequestException(limitCheck.reason);
+      }
 
+      try {
         // Track usage consumption
-        await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1);
+        this.logger.debug(`[SESSION_CREATION] Tracking usage for subscriberId: ${subscriberId}`);
+        const newUsageCount = await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1);
+        this.logger.debug(`[SESSION_CREATION] Usage tracked successfully. New count: ${newUsageCount}`);
       } catch (error) {
-        this.logger.error(`Failed to track user plan usage: ${error.message}`);
+        this.logger.error(`[SESSION_CREATION] Failed to track user plan usage: ${error.message}`);
+        this.logger.error(`[SESSION_CREATION] Stack: ${error.stack}`);
         // Don't block session creation if tracking fails
       }
     }
