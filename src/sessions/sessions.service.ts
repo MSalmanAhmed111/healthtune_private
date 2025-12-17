@@ -12,6 +12,7 @@ import { DataAccessService } from 'src/common/services/data-access.service';
 import { PlanUsageService } from 'src/common/services/plan-usage.service';
 import { EncryptionService } from 'src/common/encryption/encryption.service';
 import { SessionFeedback } from './entity/session-feedback.entity';
+import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import moment from 'moment';
 
 @Injectable()
@@ -87,13 +88,13 @@ export class SessionService {
     const userHasUserPlan = user.userPlan && user.userPlan.id;
 
     let subscriberId: number | null = null;
-    let subscriberType: any = null;
+    let subscriberType: SubscriberType | null = null;
     if (orgHasUserPlan) {
       subscriberId = user.organizationId; // Organization plan has priority
-      subscriberType = 'ORGANIZATION';
+      subscriberType = SubscriberType.ORGANIZATION;
     } else if (userHasUserPlan) {
       subscriberId = user.id; // Fall back to individual plan
-      subscriberType = 'USER';
+      subscriberType = SubscriberType.USER;
     }
 
     if (subscriberId) {
@@ -109,7 +110,7 @@ export class SessionService {
       try {
         // Track usage consumption
         this.logger.debug(`[SESSION_CREATION] Tracking usage for subscriberId: ${subscriberId}, type: ${subscriberType}`);
-        const newUsageCount = await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1, subscriberType as any);
+        const newUsageCount = await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1, subscriberType);
         this.logger.debug(`[SESSION_CREATION] Usage tracked successfully. New count: ${newUsageCount}`);
       } catch (error) {
         this.logger.error(`[SESSION_CREATION] Failed to track user plan usage: ${error.message}`);
