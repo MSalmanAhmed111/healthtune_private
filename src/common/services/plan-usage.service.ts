@@ -64,17 +64,25 @@ export class PlanUsageService {
     subscriberId: number,
     featureName: PlanFeatureNameEnum,
     amount: number = 1,
+    subscriberType?: SubscriberType,
   ): Promise<number> {
     try {
-      this.logger.debug(`[USAGE_TRACKING] Starting usage tracking for subscriber ${subscriberId}, feature ${featureName}`);
+      this.logger.debug(`[USAGE_TRACKING] Starting usage tracking for subscriber ${subscriberId}, feature ${featureName}, type: ${subscriberType || 'any'}`);
       
-      // Try to find user's plan first (individual subscription)
-      let userPlan = await this.findActivePlan(subscriberId, SubscriberType.USER);
+      let userPlan: UserPlan | null = null;
 
-      // If no user plan, try organization plan
-      if (!userPlan) {
-        this.logger.debug(`[USAGE_TRACKING] No USER plan found for subscriber ${subscriberId}, trying ORGANIZATION plan`);
+      // If subscriberType is specified, use only that type
+      if (subscriberType) {
+        userPlan = await this.findActivePlan(subscriberId, subscriberType);
+      } else {
+        // Default: Try ORGANIZATION plan first (organization has priority)
         userPlan = await this.findActivePlan(subscriberId, SubscriberType.ORGANIZATION);
+
+        // If no organization plan, fall back to user's individual plan
+        if (!userPlan) {
+          this.logger.debug(`[USAGE_TRACKING] No ORGANIZATION plan found for subscriber ${subscriberId}, trying USER plan`);
+          userPlan = await this.findActivePlan(subscriberId, SubscriberType.USER);
+        }
       }
 
       if (!userPlan) {
@@ -227,14 +235,21 @@ export class PlanUsageService {
   async checkUsageLimitBeforeIncrement(
     subscriberId: number,
     featureName: PlanFeatureNameEnum,
+    subscriberType?: SubscriberType,
   ): Promise<{ canUse: boolean; reason?: string }> {
     try {
-      // First, try user's plan (individual subscription)
-      let userPlan = await this.findActivePlan(subscriberId, SubscriberType.USER);
+      let userPlan: UserPlan | null = null;
 
-      // If no user plan, check organization's plan
-      if (!userPlan) {
+      if (subscriberType) {
+        userPlan = await this.findActivePlan(subscriberId, subscriberType);
+      } else {
+        // Default: Check ORGANIZATION plan first (organization has priority)
         userPlan = await this.findActivePlan(subscriberId, SubscriberType.ORGANIZATION);
+
+        // If no organization plan, check user's individual plan
+        if (!userPlan) {
+          userPlan = await this.findActivePlan(subscriberId, SubscriberType.USER);
+        }
       }
 
       if (!userPlan) {

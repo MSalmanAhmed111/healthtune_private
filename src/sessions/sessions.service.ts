@@ -87,16 +87,20 @@ export class SessionService {
     const userHasUserPlan = user.userPlan && user.userPlan.id;
 
     let subscriberId: number | null = null;
+    let subscriberType: any = null;
     if (orgHasUserPlan) {
       subscriberId = user.organizationId; // Organization plan has priority
+      subscriberType = 'ORGANIZATION';
     } else if (userHasUserPlan) {
       subscriberId = user.id; // Fall back to individual plan
+      subscriberType = 'USER';
     }
 
     if (subscriberId) {
       const limitCheck = await this.planUsageService.checkUsageLimitBeforeIncrement(
         subscriberId,
-        PlanFeatureNameEnum.SESSION_CREATION
+        PlanFeatureNameEnum.SESSION_CREATION,
+        subscriberType
       );
       if (!limitCheck.canUse) {
         throw new BadRequestException(limitCheck.reason);
@@ -104,8 +108,8 @@ export class SessionService {
 
       try {
         // Track usage consumption
-        this.logger.debug(`[SESSION_CREATION] Tracking usage for subscriberId: ${subscriberId}`);
-        const newUsageCount = await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1);
+        this.logger.debug(`[SESSION_CREATION] Tracking usage for subscriberId: ${subscriberId}, type: ${subscriberType}`);
+        const newUsageCount = await this.planUsageService.trackUsage(subscriberId, PlanFeatureNameEnum.SESSION_CREATION, 1, subscriberType as any);
         this.logger.debug(`[SESSION_CREATION] Usage tracked successfully. New count: ${newUsageCount}`);
       } catch (error) {
         this.logger.error(`[SESSION_CREATION] Failed to track user plan usage: ${error.message}`);
