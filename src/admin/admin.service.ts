@@ -672,10 +672,12 @@ export class AdminService {
     const individualUserIds = individuals.map(ind => ind.subscriberId || ind.userId);
     
     if (individualUserIds.length > 0) {
-      // Get full user details
-      const nonOrgUsers = await this.userRepository.find({
-        where: individualUserIds.map(id => ({ id }))
-      });
+      // Get full user details - exclude users who are part of organizations
+      const nonOrgUsers = await this.userRepository
+        .createQueryBuilder('user')
+        .where('user.id IN (:...userIds)', { userIds: individualUserIds })
+        .andWhere('user.organizationId IS NULL')
+        .getMany();
 
       const nonOrgUserMap = new Map(nonOrgUsers.map(u => [u.id, u]));
       
