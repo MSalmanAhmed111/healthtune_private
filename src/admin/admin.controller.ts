@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SwaggerApiResponse } from '@decorators';
 import { AdminLoginDto, CreateAppointmentDto, GetAppointmentsDto, GetSessionsDto, GetSessionStatsDto, PaginationUserQueryDto, UpdateAppointmentDto, UpdateUserDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto, OrganizationQueryDto } from '@dtos';
@@ -6,7 +6,7 @@ import { ValidateId } from '@pipes/validate-id.pipe';
 import { UserService } from 'src/user/user.service';
 import { ApiTags } from '@nestjs/swagger';
 import { AppointmentService } from 'src/appointment/appointment.service';
-import { ApiMessageData } from '@types';
+import { ApiMessageData, ApiMessageDataPagination } from '@types';
 import { SessionService } from 'src/sessions/sessions.service';
 import { Public } from 'src/common/decorators/public.decorator';
 import { AuthType } from 'src/common/decorators/auth-type.decorator';
@@ -327,5 +327,25 @@ export class AdminController {
     @Param('action') action: 'increment' | 'decrement' | 'reset'
   ): Promise<ApiMessageData> {
     return await this.adminService.updateIndividualUsage(userId, featureName, action);
+  }
+
+  //  ==================================================================================================================================================================
+  // ?                                                              FEEDBACK APIS
+  //  ==================================================================================================================================================================
+
+  @Get('/feedbacks')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get all session feedbacks with pagination')
+  async getAllFeedbacks(@Query() paginationParams: PaginationQueryDto): Promise<ApiMessageDataPagination> {
+    return await this.adminService.getAllFeedbacks(paginationParams);
+  }
+
+  @Get('/feedbacks/:feedbackId')
+  @AuthType('admin')
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get feedback details')
+  async getFeedbackDetails(@Param('feedbackId', ValidateId) feedbackId: number): Promise<ApiMessageData> {
+    return await this.adminService.getFeedbackDetails(feedbackId);
   }
 }

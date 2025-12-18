@@ -1,4 +1,4 @@
-import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty, User } from '@entities';
+import { Admin, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty, User, SessionFeedback, Session } from '@entities';
 import { SubscriberType } from 'src/user/entity/user-plan.entity';
 import { adminErrorMessages, SuccessResponseMessages } from '@messages';
 import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
@@ -33,6 +33,10 @@ export class AdminService {
     private readonly featureRepository: Repository<PlanFeature>,
     @InjectRepository(PlanFeatureProperty)
     private readonly featurePropertyRepository: Repository<PlanFeatureProperty>,
+    @InjectRepository(SessionFeedback)
+    private readonly sessionFeedbackRepository: Repository<SessionFeedback>,
+    @InjectRepository(Session)
+    private readonly sessionRepository: Repository<Session>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -1094,6 +1098,153 @@ export class AdminService {
         remaining,
         action
       },
+    };
+  }
+
+  async getAllFeedbacks(paginationParams: PaginationQueryDto): Promise<ApiMessageDataPagination> {
+    this.logger.log('Fetching all session feedbacks');
+    
+    const { page = 1, limit = 10 } = paginationParams;
+
+    const [feedbacks, total] = await this.sessionFeedbackRepository.findAndCount({
+      relations: [
+        'session',
+        'session.user',
+        'session.patient',
+        'user'
+      ],
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: (page - 1) * limit
+    });
+
+    // Format feedback data with session and user details
+    const formattedFeedbacks = feedbacks.map(feedback => ({
+      id: feedback.id,
+      feedback: feedback.feedback,
+      sessionId: feedback.sessionId,
+      userId: feedback.userId,
+      createdAt: feedback.createdAt,
+      updatedAt: feedback.updatedAt,
+      session: feedback.session ? {
+        id: feedback.session.id,
+        sessionType: feedback.session.sessionType,
+        noteFormat: feedback.session.noteFormat,
+        language: feedback.session.language,
+        status: feedback.session.status,
+        createdAt: feedback.session.createdAt,
+        conductedBy: feedback.session.user ? {
+          id: feedback.session.user.id,
+          email: feedback.session.user.email,
+          firstName: feedback.session.user.firstName,
+          lastName: feedback.session.user.lastName,
+        } : null,
+      } : null,
+      user: feedback.user ? {
+        id: feedback.user.id,
+        email: feedback.user.email,
+        firstName: feedback.user.firstName,
+        lastName: feedback.user.lastName,
+      } : null,
+    }));
+
+    const lastPage = Math.ceil(total / limit);
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: formattedFeedbacks,
+      page,
+      lastPage,
+      total
+    };
+  }
+
+  async getFeedbackDetails(feedbackId: number): Promise<ApiMessageData> {
+    this.logger.log(`Fetching feedback details for ID: ${feedbackId}`);
+
+    const feedback = await this.sessionFeedbackRepository.findOne({
+      where: { id: feedbackId },
+      relations: [
+        'session',
+        'session.user',
+        'session.patient',
+        'session.appointment',
+        'user'
+      ]
+    });
+
+    if (!feedback) {
+      throw new NotFoundException(`Feedback with ID ${feedbackId} not found`);
+    }
+
+    // Get conductor's organization info if exists
+    const conductor = feedback.session?.user;
+    let organizationInfo = null;
+    if (conductor) {
+      const conductorOrg = await this.organizationRepository.findOne({
+        where: { id: conductor.organizationId },
+        relations: ['userPlan', 'userPlan.plan']
+      });
+      organizationInfo = conductorOrg ? {
+        id: conductorOrg.id,
+        name: conductorOrg.name,
+        slug: conductorOrg.slug,
+        country: conductorOrg.country,
+        state: conductorOrg.state,
+        city: conductorOrg.city,
+        subscription: conductorOrg.userPlan ? {
+          planName: conductorOrg.userPlan.plan?.name,
+          isActive: conductorOrg.userPlan.isSubscriptionActive,
+          startDate: conductorOrg.userPlan.startDate,
+          endDate: conductorOrg.userPlan.endDate,
+        } : null,
+      } : null;
+    }
+
+    return {
+      message: SuccessResponseMessages.successGeneral,
+      data: {
+        id: feedback.id,
+        feedback: feedback.feedback,
+        createdAt: feedback.createdAt,
+        updatedAt: feedback.updatedAt,
+        session: feedback.session ? {
+          id: feedback.session.id,
+          sessionType: feedback.session.sessionType,
+          noteFormat: feedback.session.noteFormat,
+          language: feedback.session.language,
+          status: feedback.session.status,
+          duration: feedback.session.duration,
+          createdAt: feedback.session.createdAt,
+          updatedAt: feedback.session.updatedAt,
+          patient: feedback.session.patient ? {
+            id: feedback.session.patient.id,
+            firstName: feedback.session.patient.firstName,
+            lastName: feedback.session.patient.lastName,
+            mreNumber: feedback.session.patient.mreNumber,
+          } : null,
+          appointment: feedback.session.appointment ? {
+            id: feedback.session.appointment.id,
+            appointmentDate: feedback.session.appointment.appointmentDate,
+            status: feedback.session.appointment.status,
+          } : null,
+          conductor: feedback.session.user ? {
+            id: feedback.session.user.id,
+            email: feedback.session.user.email,
+            firstName: feedback.session.user.firstName,
+            lastName: feedback.session.user.lastName,
+            organizationId: feedback.session.user.organizationId,
+            organization: organizationInfo,
+            subscriberType: feedback.session.user.organizationId ? 'organization' : 'individual',
+          } : null,
+        } : null,
+        feedbackGivenBy: feedback.user ? {
+          id: feedback.user.id,
+          email: feedback.user.email,
+          firstName: feedback.user.firstName,
+          lastName: feedback.user.lastName,
+        } : null,
+      }
     };
   }
 }
