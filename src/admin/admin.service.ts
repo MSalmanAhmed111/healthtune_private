@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AdminLoginDto, CreatePlanDto, UpdatePlanDto, PaginationQueryDto, OrganizationQueryDto } from '@dtos';
+import { EncryptionService } from 'src/common/encryption/encryption.service';
 
 @Injectable()
 export class AdminService {
@@ -39,6 +40,7 @@ export class AdminService {
     private readonly sessionRepository: Repository<Session>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   
@@ -1217,12 +1219,12 @@ export class AdminService {
           duration: feedback.session.duration,
           createdAt: feedback.session.createdAt,
           updatedAt: feedback.session.updatedAt,
-          patient: feedback.session.patient ? {
+          patient: feedback.session.patient ? this.decryptPatientData({
             id: feedback.session.patient.id,
             firstName: feedback.session.patient.firstName,
             lastName: feedback.session.patient.lastName,
             mreNumber: feedback.session.patient.mreNumber,
-          } : null,
+          }) : null,
           appointment: feedback.session.appointment ? {
             id: feedback.session.appointment.id,
             appointmentDate: feedback.session.appointment.appointmentDate,
@@ -1246,5 +1248,38 @@ export class AdminService {
         } : null,
       }
     };
+  }
+
+  private decryptPatientData(patient: any): any {
+    const phiFields = [
+      'mreNumber',
+      'firstName',
+      'lastName',
+      'email',
+      'phoneNumber',
+      'medicalHistory',
+      'allergies',
+      'currentMedications',
+      'chronicDiseases',
+      'surgicalHistory',
+      'emergencyContactName',
+      'emergencyContactPhone',
+      'insuranceProvider',
+      'insurancePolicyNumber',
+      'admissionReason',
+    ];
+
+    const decrypted = { ...patient };
+    phiFields.forEach((field) => {
+      if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field].includes(':')) {
+        try {
+          decrypted[field] = this.encryptionService.decrypt(decrypted[field]);
+        } catch (error) {
+          // If decryption fails, keep original value
+        }
+      }
+    });
+
+    return decrypted;
   }
 }
