@@ -9,6 +9,7 @@ import { User, Appointment, Session, Admin, Organization, Plan, UserPlan, UserPl
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { AccessTokenStrategy } from '@strategies/access-token.strategy';
+import { EncryptionModule } from 'src/common/encryption/encryption.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AccessTokenStrategy } from '@strategies/access-token.strategy';
     AppointmentModule, 
     SessionsModule,
     PlanModule,
+    EncryptionModule,
     TypeOrmModule.forFeature([User, Session, Admin, Appointment, Organization, Plan, UserPlan, UserPlanUsage, SubscriptionHistory, PlanFeature, PlanFeatureProperty, SessionFeedback])
   ], 
   controllers: [AdminController],
