@@ -658,36 +658,41 @@ export class AdminService {
     
     const { page = 1, limit = 10 } = paginationParams;
 
-    const [individuals, total] = await this.userPlanRepository.findAndCount({
+    // Fetch user plans with subscriptions (SubscriberType.USER only)
+    const allUserPlans = await this.userPlanRepository.find({
       where: {
         subscriberType: SubscriberType.USER
       },
       relations: ['plan', 'usage'],
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: (page - 1) * limit
+      order: { createdAt: 'DESC' }
     });
 
-    // Get all user IDs from individuals
-    const individualUserIds = individuals.map(ind => ind.subscriberId || ind.userId);
+    // Get all user IDs from all user plans
+    const allUserIds = allUserPlans.map(ind => ind.subscriberId || ind.userId);
     
-    if (individualUserIds.length > 0) {
-      // Get full user details - exclude users who are part of organizations
+    if (allUserIds.length > 0) {
+      // Get full user details - only those who are NOT part of organizations
       const nonOrgUsers = await this.userRepository
         .createQueryBuilder('user')
-        .where('user.id IN (:...userIds)', { userIds: individualUserIds })
+        .where('user.id IN (:...userIds)', { userIds: allUserIds })
         .andWhere('user.organizationId IS NULL')
         .getMany();
 
       const nonOrgUserMap = new Map(nonOrgUsers.map(u => [u.id, u]));
       
-      // Filter individuals to only include those not in organizations
-      const filteredIndividuals = individuals.filter(ind => {
+      // Filter user plans to only include those not in organizations
+      const filteredUserPlans = allUserPlans.filter(ind => {
         const userId = ind.subscriberId || ind.userId;
         return nonOrgUserMap.has(userId);
       });
 
-      const individualsWithSubscriptions = filteredIndividuals.map(userPlan => {
+      // Now apply pagination on the filtered results
+      const totalFilteredIndividuals = filteredUserPlans.length;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedUserPlans = filteredUserPlans.slice(startIndex, endIndex);
+
+      const individualsWithSubscriptions = paginatedUserPlans.map(userPlan => {
         const userId = userPlan.subscriberId || userPlan.userId;
         const user = nonOrgUserMap.get(userId);
         
@@ -722,14 +727,14 @@ export class AdminService {
         };
       });
 
-      const lastPage = Math.ceil(total / limit);
+      const lastPage = Math.ceil(totalFilteredIndividuals / limit);
 
       return {
         message: SuccessResponseMessages.successGeneral,
         data: individualsWithSubscriptions,
         page,
         lastPage,
-        total
+        total: totalFilteredIndividuals
       };
     }
 
