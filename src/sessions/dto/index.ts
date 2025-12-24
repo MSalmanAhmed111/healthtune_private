@@ -4,5 +4,6 @@ export * from './add-transcript.entity';
 export * from './add-notes.entity';
 export * from './get-session-stats.dto';
 export * from './get-sessions.dto';
+export * from './get-session-history.dto';
 export * from './add-session-details.dto';
 export * from './create-session-feedback.dto';

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Put, Query, R
 import { SessionService } from './sessions.service';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiMessageData, ApiMessageDataPagination, PermissionEnum } from '@types';
-import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
+import { AddNoteDto, CreateSessionDto, AddTranscriptDto, GetSessionsDto, GetSessionHistoryDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
 import { ValidateId } from '@pipes/validate-id.pipe';
 import { FileUpload, SwaggerApiResponse } from '@decorators';
 import { Request } from 'express';
@@ -85,6 +85,18 @@ export class SessionController {
   @SwaggerApiResponse('Get all user sessions')
   async getUserSessions(@Query() queryParams: GetSessionsDto, @Req() req: Request) {
     return await this.sessionService.getSessions(queryParams, +req.user.id);
+  }
+
+  @Get('/:patientId/sessions-history')
+  @Permissions(PermissionEnum.VIEW_SESSION, PermissionEnum.VIEW_ALL_SESSIONS)
+  @HttpCode(HttpStatus.OK)
+  @SwaggerApiResponse('Get session history for a specific patient')
+  async getSessionsHistory(
+    @Param('patientId', ValidateId) patientId: number,
+    @Query() queryParams: GetSessionHistoryDto,
+    @Req() req: Request
+  ): Promise<ApiMessageDataPagination> {
+    return await this.sessionService.getSessionsHistory(patientId, queryParams, +req.user.id);
   }
 
   @Get('/:id')

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Session, Note, Transcript, DoctorNotes, DiagnosisCodes, FileStorage, Patient, Setting, User, UserPlanUsage, SessionCosting, Appointment, UserPlan } from '@entities';
 import { Between, Brackets, Repository, QueryFailedError } from 'typeorm';
 import { ApiMessageData, ApiMessageDataPagination, AppointmentStatus, PlanFeatureNameEnum, SessionStatusEnum, SortEnum } from '@types';
-import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
+import { CreateSessionDto, AddNoteDto, AddTranscriptDto, GetSessionStatsDto, GetSessionsDto, GetSessionHistoryDto, UpdateSessionDto, AddSessionDetailsDto, CreateSessionFeedbackDto, PaginationQueryDto } from 'src/dto';
 import { PatientErrorMessages, SessionErrorMessages, SuccessResponseMessages } from '@messages';
 import { FileStorageService } from 'src/file-storage/file-storage.service';
 import { StorageProviderInterface } from 'src/common/providers';
@@ -425,6 +425,78 @@ export class SessionService {
       session.patient = undefined;
     }
     return { message: SuccessResponseMessages.successGeneral, data: sessions, page: page, total: total, lastPage: lastPage };
+  }
+
+  async getSessionsHistory(patientId: number, getSessionHistoryDto: GetSessionHistoryDto, userId: number): Promise<ApiMessageDataPagination> {
+    // Verify user has access to this patient
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['organization', 'role', 'role.permissions'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Check if patient exists and user has access
+    const patient = await this.patientRepository.findOne({ where: { id: patientId } });
+    if (!patient) throw new NotFoundException(`Patient with ID ${patientId} not found`);
+
+    const { query, page = 1, limit = 10, sort = SortEnum.DESC, startDate, endDate, status } = getSessionHistoryDto;
+
+    let qb = this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.note', 'note')
+      .leftJoinAndSelect('session.transcript', 'transcript')
+      .leftJoinAndSelect('session.doctorNotes', 'doctorNotes')
+      .leftJoinAndSelect('session.diagnosisCodes', 'diagnosisCodes')
+      .leftJoinAndSelect('session.user', 'user')
+      .select(['session', 'note', 'transcript', 'doctorNotes', 'diagnosisCodes', 'user.id', 'user.firstName', 'user.lastName', 'user.email'])
+      .andWhere('session.patientId = :patientId', { patientId })
+      .orderBy('session.createdAt', sort);
+
+    // Apply search query
+    if (query) {
+      qb.andWhere(
+        new Brackets((qb) => {
+          qb.where('LOWER(session.patientName) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.sessionType) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere('LOWER(session.language) LIKE LOWER(:query)', { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.email, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.firstName, '')) LIKE LOWER(:query)`, { query: `%${query}%` })
+            .orWhere(`LOWER(COALESCE(user.lastName, '')) LIKE LOWER(:query)`, { query: `%${query}%` });
+        }),
+      );
+    }
+
+    // Apply status filter
+    if (status) {
+      qb.andWhere('session.status = :status', { status });
+    }
+
+    // Apply date range filter
+    if (startDate) {
+      qb.andWhere('session.createdAt >= :startDate', { startDate: moment(startDate).utc().startOf('day').toDate() });
+    }
+    if (endDate) {
+      qb.andWhere('session.createdAt <= :endDate', { endDate: moment(endDate).utc().endOf('day').toDate() });
+    }
+
+    // Apply pagination
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [sessions, total] = await qb.getManyAndCount();
+    const lastPage = Math.ceil(total / limit);
+
+    // Decrypt patient names
+    for (const session of sessions) {
+      const decryptedName = this.decryptField(session.patientName);
+      if (decryptedName === session.patientName && session.patientName.includes(':')) {
+        // Decryption failed, reconstruct from patient
+        session.patientName = `${patient.firstName} ${patient.lastName}`;
+      } else {
+        session.patientName = decryptedName;
+      }
+    }
+
+    return { message: SuccessResponseMessages.successGeneral, data: sessions, page, total, lastPage };
   }
 
   async getSession(sessionId: number, userId: number = undefined): Promise<ApiMessageData> {
